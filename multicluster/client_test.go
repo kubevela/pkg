@@ -17,20 +17,18 @@ limitations under the License.
 package multicluster_test
 
 import (
-	"context"
 	"io/ioutil"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/test/kubebuilder"
+	"github.com/kubevela/pkg/util/test/tester"
 )
 
 var _ = Describe("Test multicluster client", func() {
@@ -58,26 +56,7 @@ var _ = Describe("Test multicluster client", func() {
 		Ω(err).To(Succeed())
 
 		By("Test basic functions")
-		ctx := context.Background()
-		namespace, name := "default", "fake"
-		svc := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-			Spec: corev1.ServiceSpec{
-				Ports: []corev1.ServicePort{{Name: "example", Port: 6443}},
-			},
-		}
-		Ω(c.Create(ctx, svc)).To(Succeed())
-		Ω(c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, svc)).To(Succeed())
-		Ω(c.List(ctx, &corev1.ServiceList{})).To(Succeed())
-		Ω(c.Update(ctx, svc)).To(Succeed())
-		Ω(c.Patch(ctx, svc, client.Merge)).To(Succeed())
-		Ω(c.Status().Update(ctx, svc)).To(Succeed())
-		Ω(c.Status().Patch(ctx, svc, client.Merge)).To(Succeed())
-		Ω(c.Delete(ctx, svc)).To(Succeed())
-		Ω(c.DeleteAllOf(ctx, &corev1.ConfigMap{}, client.InNamespace(namespace))).To(Succeed())
-		Ω(c.Scheme().IsGroupRegistered("cluster.core.oam.dev")).To(BeTrue())
-		_, err = c.RESTMapper().ResourceSingularizer("configmaps")
-		Ω(err).To(Succeed())
+		tester.TestClientFunctions(c)
 
 		By("Client with args")
 		multicluster.AddClusterGatewayClientFlags(pflag.CommandLine)
