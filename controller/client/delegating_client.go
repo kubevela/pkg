@@ -26,9 +26,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
+	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/k8s"
 )
 
+// delegatingClient delegate the requests to the cacheReader if the target
+// resource is cached.
 type delegatingClient struct {
 	client.Reader
 	client.Writer
@@ -81,7 +84,7 @@ func (d *delegatingReader) shouldBypassCache(obj runtime.Object) (bool, error) {
 func (d *delegatingReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 	if isUncached, err := d.shouldBypassCache(obj); err != nil {
 		return err
-	} else if isUncached {
+	} else if cluster, _ := multicluster.ClusterFrom(ctx); !multicluster.IsLocal(cluster) || isUncached {
 		return d.ClientReader.Get(ctx, key, obj)
 	}
 	return d.CacheReader.Get(ctx, key, obj)
@@ -91,7 +94,7 @@ func (d *delegatingReader) Get(ctx context.Context, key client.ObjectKey, obj cl
 func (d *delegatingReader) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	if isUncached, err := d.shouldBypassCache(list); err != nil {
 		return err
-	} else if isUncached {
+	} else if cluster, _ := multicluster.ClusterFrom(ctx); !multicluster.IsLocal(cluster) || isUncached {
 		return d.ClientReader.List(ctx, list, opts...)
 	}
 	return d.CacheReader.List(ctx, list, opts...)

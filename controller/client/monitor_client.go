@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/monitor/metrics"
+	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/k8s"
 	velaruntime "github.com/kubevela/pkg/util/runtime"
 )
@@ -40,17 +41,19 @@ var (
 			Name:    "kubevela_controller_client_request_time_seconds",
 			Help:    "client request duration for kubevela controllers",
 			Buckets: metrics.FineGrainedBuckets,
-		}, []string{"controller", "verb", "kind", "apiVersion", "unstructured"})
+		}, []string{"controller", "cluster", "verb", "kind", "apiVersion", "unstructured"})
 )
 
 // monitor creates a callback to call when function ends
 // It reports the execution duration for the function call
-func monitor(verb string, obj runtime.Object) func() {
+func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 	begin := time.Now()
+	cluster, _ := multicluster.ClusterFrom(ctx)
 	return func() {
 		v := time.Since(begin).Seconds()
 		controllerClientRequestLatency.WithLabelValues(
 			velaruntime.GetControllerInCaller(),
+			cluster,
 			verb,
 			k8s.GetKindForObject(obj, true),
 			obj.GetObjectKind().GroupVersionKind().GroupVersion().String(),
@@ -65,13 +68,13 @@ type monitorCache struct {
 }
 
 func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	cb := monitor("GetCache", obj)
+	cb := monitor(ctx, "GetCache", obj)
 	defer cb()
 	return c.Cache.Get(ctx, key, obj)
 }
 
 func (c *monitorCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	cb := monitor("ListCache", list)
+	cb := monitor(ctx, "ListCache", list)
 	defer cb()
 	return c.Cache.List(ctx, list, opts...)
 }
@@ -82,43 +85,43 @@ type monitorClient struct {
 }
 
 func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	cb := monitor("Get", obj)
+	cb := monitor(ctx, "Get", obj)
 	defer cb()
 	return c.Client.Get(ctx, key, obj)
 }
 
 func (c *monitorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	cb := monitor("List", list)
+	cb := monitor(ctx, "List", list)
 	defer cb()
 	return c.Client.List(ctx, list, opts...)
 }
 
 func (c *monitorClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-	cb := monitor("Create", obj)
+	cb := monitor(ctx, "Create", obj)
 	defer cb()
 	return c.Client.Create(ctx, obj, opts...)
 }
 
 func (c *monitorClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-	cb := monitor("Delete", obj)
+	cb := monitor(ctx, "Delete", obj)
 	defer cb()
 	return c.Client.Delete(ctx, obj, opts...)
 }
 
 func (c *monitorClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	cb := monitor("Update", obj)
+	cb := monitor(ctx, "Update", obj)
 	defer cb()
 	return c.Client.Update(ctx, obj, opts...)
 }
 
 func (c *monitorClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	cb := monitor("Patch", obj)
+	cb := monitor(ctx, "Patch", obj)
 	defer cb()
 	return c.Client.Patch(ctx, obj, patch, opts...)
 }
 
 func (c *monitorClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
-	cb := monitor("DeleteAllOf", obj)
+	cb := monitor(ctx, "DeleteAllOf", obj)
 	defer cb()
 	return c.Client.DeleteAllOf(ctx, obj, opts...)
 }
@@ -133,13 +136,13 @@ type monitorStatusWriter struct {
 }
 
 func (w *monitorStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	cb := monitor("StatusUpdate", obj)
+	cb := monitor(ctx, "StatusUpdate", obj)
 	defer cb()
 	return w.StatusWriter.Update(ctx, obj, opts...)
 }
 
 func (w *monitorStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	cb := monitor("StatusPatch", obj)
+	cb := monitor(ctx, "StatusPatch", obj)
 	defer cb()
 	return w.StatusWriter.Patch(ctx, obj, patch, opts...)
 }
