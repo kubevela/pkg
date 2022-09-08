@@ -8,3 +8,4 @@ coverage:
         target: 70%
 ignore:
   - "test/**"
+  - "util/test/**"
