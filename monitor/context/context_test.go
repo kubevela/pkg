@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -44,4 +45,12 @@ func TestLog(t *testing.T) {
 	ctx.Error(err, "test case", "generated", "test_log")
 	ctx.ErrorDepth(1, err, "test case", "generated", "test_log")
 	spanCtx.Commit("finished")
+
+	ctx = NewTraceContext(context.Background(), "")
+	ctx = ctx.Fork("")
+	ctx.V(0)
+	ctx.Printf("test print log")
+	_ctx := context.Background()
+	ctx.SetContext(_ctx)
+	require.Equal(t, _ctx, ctx.GetContext())
 }
