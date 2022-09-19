@@ -27,6 +27,7 @@ import (
 type UnknownObject struct {
 	metav1.TypeMeta
 	metav1.ObjectMeta
+	Chan chan int
 }
 
 // DeepCopyObject .

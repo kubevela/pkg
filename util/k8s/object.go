@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -49,4 +50,42 @@ func IsUnstructuredObject(obj runtime.Object) bool {
 	_, isUnstructured := obj.(*unstructured.Unstructured)
 	_, isUnstructuredList := obj.(*unstructured.UnstructuredList)
 	return isUnstructured || isUnstructuredList
+}
+
+// AddAnnotation add annotation to runtime.Object
+func AddAnnotation(obj runtime.Object, key, value string) error {
+	metadataAccessor := meta.NewAccessor()
+	annos, err := metadataAccessor.Annotations(obj)
+	if err != nil {
+		return err
+	}
+	if annos == nil {
+		annos = make(map[string]string)
+	}
+	annos[key] = string(value)
+	return metadataAccessor.SetAnnotations(obj, annos)
+}
+
+// GetAnnotations get annotation from runtime.Object
+func GetAnnotation(obj runtime.Object, key string) string {
+	metadataAccessor := meta.NewAccessor()
+	annos, err := metadataAccessor.Annotations(obj)
+	if err != nil || annos == nil {
+		return ""
+	}
+	return annos[key]
+}
+
+// DeleteAnnotation delete annotation from runtime.Object
+func DeleteAnnotation(obj runtime.Object, key string) error {
+	metadataAccessor := meta.NewAccessor()
+	annos, err := metadataAccessor.Annotations(obj)
+	if err != nil {
+		return err
+	}
+	if annos == nil {
+		return nil
+	}
+	delete(annos, key)
+	return metadataAccessor.SetAnnotations(obj, annos)
 }
