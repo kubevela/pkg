@@ -214,3 +214,129 @@ func TestDeleteAnnotation(t *testing.T) {
 		})
 	}
 }
+
+func TestAddLabel(t *testing.T) {
+	testcases := map[string]struct {
+		obj     runtime.Object
+		key     string
+		value   string
+		wantErr string
+	}{
+		"unstructured": {
+			obj:   &unstructured.Unstructured{},
+			key:   "test-key",
+			value: "test-value",
+		},
+		"unstructured-update": {
+			obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							"test-key": "test-value",
+						},
+					},
+				},
+			},
+			key:   "test-key",
+			value: "test-value-new",
+		},
+		"no-meta": {
+			obj:     &testNoMetaObject{},
+			wantErr: "object does not implement the Object interfaces",
+		},
+	}
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			err := k8s.AddLabel(testcase.obj, testcase.key, testcase.value)
+			if testcase.wantErr != "" {
+				r.Equal(err.Error(), testcase.wantErr)
+				return
+			}
+			r.NoError(err)
+			result := k8s.GetLabel(testcase.obj, testcase.key)
+			r.Equal(testcase.value, result)
+		})
+	}
+}
+
+func TestGetLabel(t *testing.T) {
+	testcases := map[string]struct {
+		obj      runtime.Object
+		key      string
+		expected string
+		wantErr  string
+	}{
+		"unstructured": {
+			obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							"test-key": "test-value",
+						},
+					},
+				},
+			},
+			key:      "test-key",
+			expected: "test-value",
+		},
+		"unstructured-empty": {
+			obj:      &unstructured.Unstructured{},
+			key:      "test-key",
+			expected: "",
+		},
+		"no-meta": {
+			obj:     &testNoMetaObject{},
+			wantErr: "object does not implement the Object interfaces",
+		},
+	}
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			result := k8s.GetLabel(testcase.obj, testcase.key)
+			r.Equal(testcase.expected, result)
+		})
+	}
+}
+
+func TestDeleteLabel(t *testing.T) {
+	testcases := map[string]struct {
+		obj     runtime.Object
+		key     string
+		wantErr string
+	}{
+		"unstructured": {
+			obj: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]interface{}{
+							"test-key": "test-value",
+						},
+					},
+				},
+			},
+			key: "test-key",
+		},
+		"unstructured-empty": {
+			obj: &unstructured.Unstructured{},
+			key: "test-key",
+		},
+		"no-meta": {
+			obj:     &testNoMetaObject{},
+			wantErr: "object does not implement the Object interfaces",
+		},
+	}
+	for name, testcase := range testcases {
+		t.Run(name, func(t *testing.T) {
+			r := require.New(t)
+			err := k8s.DeleteLabel(testcase.obj, testcase.key)
+			if testcase.wantErr != "" {
+				r.Equal(err.Error(), testcase.wantErr)
+				return
+			}
+			r.NoError(err)
+			result := k8s.GetLabel(testcase.obj, testcase.key)
+			r.Equal("", result)
+		})
+	}
+}
