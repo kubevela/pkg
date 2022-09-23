@@ -89,3 +89,41 @@ func DeleteAnnotation(obj runtime.Object, key string) error {
 	delete(annos, key)
 	return metadataAccessor.SetAnnotations(obj, annos)
 }
+
+// AddLabel add label to runtime.Object
+func AddLabel(obj runtime.Object, key, value string) error {
+	metadataAccessor := meta.NewAccessor()
+	labels, err := metadataAccessor.Labels(obj)
+	if err != nil {
+		return err
+	}
+	if labels == nil {
+		labels = make(map[string]string)
+	}
+	labels[key] = string(value)
+	return metadataAccessor.SetLabels(obj, labels)
+}
+
+// GetLabels get label from runtime.Object
+func GetLabel(obj runtime.Object, key string) string {
+	metadataAccessor := meta.NewAccessor()
+	labels, err := metadataAccessor.Labels(obj)
+	if err != nil || labels == nil {
+		return ""
+	}
+	return labels[key]
+}
+
+// DeleteLabel delete Label from runtime.Object
+func DeleteLabel(obj runtime.Object, key string) error {
+	metadataAccessor := meta.NewAccessor()
+	labels, err := metadataAccessor.Labels(obj)
+	if err != nil {
+		return err
+	}
+	if labels == nil {
+		return nil
+	}
+	delete(labels, key)
+	return metadataAccessor.SetLabels(obj, labels)
+}
