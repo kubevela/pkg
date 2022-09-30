@@ -23,7 +23,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
@@ -34,11 +33,11 @@ import (
 	velaruntime "github.com/kubevela/pkg/util/runtime"
 )
 
-func init() {
-	if err := ctrlmetrics.Registry.Register(controllerClientRequestLatency); err != nil {
-		klog.Errorf("failed to register kubevela controller client request metrics: %w", err)
-	}
-}
+const (
+	// ControllerClientRequestLatencyKey metrics key for recording time cost
+	// of controller client requests
+	ControllerClientRequestLatencyKey = "controller_client_request_time_seconds"
+)
 
 var (
 	// controllerClientRequestLatency the client request latency metrics
@@ -46,11 +45,16 @@ var (
 	// monitorCache functions
 	controllerClientRequestLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "kubevela_controller_client_request_time_seconds",
-			Help:    "client request duration for kubevela controllers",
-			Buckets: metrics.FineGrainedBuckets,
+			Subsystem: metrics.KubeVelaSubsystem,
+			Name:      ControllerClientRequestLatencyKey,
+			Help:      "client request duration for kubevela controllers",
+			Buckets:   metrics.FineGrainedBuckets,
 		}, []string{"controller", "cluster", "verb", "kind", "apiVersion", "unstructured"})
 )
+
+func init() {
+	ctrlmetrics.Registry.MustRegister(controllerClientRequestLatency)
+}
 
 // monitor creates a callback to call when function ends
 // It reports the execution duration for the function call
