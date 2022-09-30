@@ -23,14 +23,22 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
 	"github.com/kubevela/pkg/monitor/metrics"
 	"github.com/kubevela/pkg/multicluster"
 	"github.com/kubevela/pkg/util/k8s"
 	velaruntime "github.com/kubevela/pkg/util/runtime"
 )
+
+func init() {
+	if err := ctrlmetrics.Registry.Register(controllerClientRequestLatency); err != nil {
+		klog.Errorf("failed to register kubevela controller client request metrics: %w", err)
+	}
+}
 
 var (
 	// controllerClientRequestLatency the client request latency metrics
