@@ -53,4 +53,7 @@ func TestLog(t *testing.T) {
 	_ctx := context.Background()
 	ctx.SetContext(_ctx)
 	require.Equal(t, _ctx, ctx.GetContext())
+
+	id := ctx.GetID()
+	require.NotEmpty(t, id)
 }

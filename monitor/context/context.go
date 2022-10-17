@@ -44,6 +44,7 @@ type Context interface {
 	AddTag(keysAndValues ...interface{}) Context
 	Fork(name string, exporters ...Exporter) Context
 	Commit(msg string)
+	GetID() string
 }
 
 // Logger represents the ability to log messages, both errors and not.
@@ -118,6 +119,10 @@ func (t *traceContext) GetContext() stdctx.Context {
 // SetContext set raw context.
 func (t *traceContext) SetContext(ctx stdctx.Context) {
 	t.Context = ctx
+}
+
+func (t *traceContext) GetID() string {
+	return t.id
 }
 
 // InfoDepth acts as Info but uses depth to determine which call frame to log.
