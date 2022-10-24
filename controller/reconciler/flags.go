@@ -14,14 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package client
+package reconciler
 
 import (
-	"testing"
-
 	"github.com/spf13/pflag"
 )
 
-func TestFlags(t *testing.T) {
-	AddFlags(pflag.NewFlagSet("test", pflag.PanicOnError))
+// AddFlags add flags for controller reconciles
+func AddFlags(set *pflag.FlagSet) {
+	AddReconcileTimeoutFlags(set)
+}
+
+// AddReconcileTimeoutFlags add flags for controller reconcile timeout
+func AddReconcileTimeoutFlags(set *pflag.FlagSet) {
+	set.DurationVarP(&ReconcileTimeout,
+		"reconcile-timeout", "",
+		ReconcileTimeout,
+		"the timeout for controller reconcile")
+	set.DurationVarP(&ReconcileTerminationGracefulPeriod,
+		"reconcile-termination-graceful-period", "",
+		ReconcileTerminationGracefulPeriod,
+		"graceful period for terminating reconcile")
 }

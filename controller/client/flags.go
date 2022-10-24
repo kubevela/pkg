@@ -18,8 +18,8 @@ package client
 
 import "github.com/spf13/pflag"
 
-// AddControllerClientFlags add flags for default controller client
-func AddControllerClientFlags(set *pflag.FlagSet) {
+// AddFlags add flags for default controller client
+func AddFlags(set *pflag.FlagSet) {
 	AddTimeoutControllerClientFlags(set)
 }
 

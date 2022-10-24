@@ -23,5 +23,5 @@ import (
 )
 
 func TestFlags(t *testing.T) {
-	AddClusterGatewayClientFlags(pflag.NewFlagSet("test", pflag.PanicOnError))
+	AddFlags(pflag.NewFlagSet("test", pflag.PanicOnError))
 }
