@@ -18,6 +18,11 @@ package multicluster
 
 import "github.com/spf13/pflag"
 
+// AddFlags add flags for multicluster
+func AddFlags(set *pflag.FlagSet) {
+	AddClusterGatewayClientFlags(set)
+}
+
 // AddClusterGatewayClientFlags add flags for default cluster-gateway client
 func AddClusterGatewayClientFlags(set *pflag.FlagSet) {
 	set.StringVarP(&DefaultClusterGatewayClientOptions.URL,
