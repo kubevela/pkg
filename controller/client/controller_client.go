@@ -40,6 +40,7 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get raw client: %w", err)
 	}
+	rawClient = WrapDefaultTimeoutClient(rawClient)
 
 	mClient := &monitorClient{rawClient}
 	mCache := &monitorCache{cache}
