@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/go-stack/stack v1.8.1
 	github.com/google/go-cmp v0.5.8
+	github.com/klauspost/compress v1.15.12
 	github.com/oam-dev/cluster-gateway v1.4.0
 	github.com/onsi/ginkgo/v2 v2.1.6
 	github.com/onsi/gomega v1.20.2
