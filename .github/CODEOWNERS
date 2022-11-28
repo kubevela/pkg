@@ -4,3 +4,4 @@ controller/client/  @Somefive
 multicluster/       @Somefive
 monitor/            @Somefive @FogDong @leejanee
 util/               @Somefive @FogDong
+util/compression    @Somefive @charlie0129
