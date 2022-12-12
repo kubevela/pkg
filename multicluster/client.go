@@ -18,7 +18,7 @@ package multicluster
 
 import (
 	"context"
-	"io/ioutil"
+	"os"
 
 	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -144,9 +144,12 @@ func NewClient(config *rest.Config, options ClientOptions) (client.Client, error
 	}
 	wrapped.Host = options.ClusterGateway.URL
 	if len(options.ClusterGateway.CAFile) > 0 {
-		if wrapped.CAData, err = ioutil.ReadFile(options.ClusterGateway.CAFile); err != nil {
+		if wrapped.CAData, err = os.ReadFile(options.ClusterGateway.CAFile); err != nil {
 			return nil, err
 		}
+	} else {
+		wrapped.CAData = nil
+		wrapped.Insecure = true
 	}
 	if options.Options.Scheme != nil {
 		// no err will be returned here

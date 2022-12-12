@@ -45,7 +45,7 @@ var _ = Describe("Test multicluster client", func() {
 		defer func() {
 			Ω(os.Remove(file.Name())).To(Succeed())
 		}()
-		Ω(ioutil.WriteFile(file.Name(), cfg.CAData, 0600)).To(Succeed())
+		Ω(os.WriteFile(file.Name(), cfg.CAData, 0600)).To(Succeed())
 		c, err := multicluster.NewClient(cfg, multicluster.ClientOptions{
 			Options: client.Options{Scheme: scheme.Scheme},
 			ClusterGateway: multicluster.ClusterGatewayClientOptions{
@@ -56,6 +56,14 @@ var _ = Describe("Test multicluster client", func() {
 		Ω(err).To(Succeed())
 
 		By("Test basic functions")
+		tester.TestClientFunctions(c)
+
+		By("Test without ca")
+		c, err = multicluster.NewClient(cfg, multicluster.ClientOptions{
+			Options:        client.Options{Scheme: scheme.Scheme},
+			ClusterGateway: multicluster.ClusterGatewayClientOptions{URL: cfg.Host},
+		})
+		Ω(err).To(Succeed())
 		tester.TestClientFunctions(c)
 
 		By("Client with args")
