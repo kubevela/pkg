@@ -34,7 +34,7 @@ func TestSingletonInit(t *testing.T) {
 }
 
 var _ = Describe("Test init", func() {
-	It("Test clients", func() {
+	It("Test singleton clients", func() {
 		singleton.RESTMapper.Get()
 		singleton.KubeClient.Get()
 		singleton.StaticClient.Get()
