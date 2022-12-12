@@ -29,6 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	"github.com/kubevela/pkg/util/singleton"
 )
 
 // InitKubeBuilderForTest call this function to init kubebuilder for test
@@ -62,6 +64,8 @@ func InitKubeBuilderForTest(options ...InitKubeConfigOption) *rest.Config {
 		if initCfg.onConfigLoaded != nil {
 			initCfg.onConfigLoaded(_cfg)
 		}
+		singleton.KubeConfig.Set(&cfg)
+		singleton.ReloadClients()
 	})
 
 	AfterSuite(func() {

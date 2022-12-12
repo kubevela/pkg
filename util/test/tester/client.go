@@ -24,11 +24,14 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/kubevela/pkg/util/k8s"
 )
 
 func TestClientFunctions(c client.Client) {
 	ctx := context.Background()
 	namespace, name := "default", "fake"
+	Ω(k8s.EnsureNamespace(ctx, c, namespace)).To(Succeed())
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec: corev1.ServiceSpec{

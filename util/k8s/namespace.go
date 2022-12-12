@@ -14,35 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package definition
+package k8s
 
 import (
 	"context"
-	"encoding/json"
-	"os"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/yaml"
 )
 
-// InstallDefinitionFromYAML will install definition from yaml file
-func InstallDefinitionFromYAML(ctx context.Context, cli client.Client, defPath string, replace func(string) string) error {
-	b, err := os.ReadFile(defPath)
-	if err != nil {
+// EnsureNamespace ensure namespace existence. If not, create it.
+func EnsureNamespace(ctx context.Context, c client.Client, ns string) error {
+	namespace := &corev1.Namespace{}
+	err := c.Get(ctx, types.NamespacedName{Name: ns}, namespace)
+	switch {
+	case client.IgnoreNotFound(err) != nil:
 		return err
+	case err == nil:
+		return nil
+	default:
+		namespace.SetName(ns)
+		return c.Create(ctx, namespace)
 	}
-	s := string(b)
-	if replace != nil {
-		s = replace(s)
-	}
-	defJson, err := yaml.YAMLToJSON([]byte(s))
-	if err != nil {
-		return err
-	}
-	u := &unstructured.Unstructured{}
-	if err := json.Unmarshal(defJson, u); err != nil {
-		return err
-	}
-	return cli.Create(ctx, u.DeepCopy())
 }

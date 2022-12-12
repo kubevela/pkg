@@ -66,7 +66,7 @@ func AddAnnotation(obj runtime.Object, key, value string) error {
 	return metadataAccessor.SetAnnotations(obj, annos)
 }
 
-// GetAnnotations get annotation from runtime.Object
+// GetAnnotation get annotation from runtime.Object
 func GetAnnotation(obj runtime.Object, key string) string {
 	metadataAccessor := meta.NewAccessor()
 	annos, err := metadataAccessor.Annotations(obj)
@@ -104,7 +104,7 @@ func AddLabel(obj runtime.Object, key, value string) error {
 	return metadataAccessor.SetLabels(obj, labels)
 }
 
-// GetLabels get label from runtime.Object
+// GetLabel get label from runtime.Object
 func GetLabel(obj runtime.Object, key string) string {
 	metadataAccessor := meta.NewAccessor()
 	labels, err := metadataAccessor.Labels(obj)

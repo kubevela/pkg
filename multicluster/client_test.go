@@ -17,7 +17,6 @@ limitations under the License.
 package multicluster_test
 
 import (
-	"io/ioutil"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -40,7 +39,7 @@ var _ = Describe("Test multicluster client", func() {
 		Ω(err).To(Succeed())
 
 		By("New gated client")
-		file, err := ioutil.TempFile("/tmp", "config")
+		file, err := os.CreateTemp("/tmp", "config")
 		Ω(err).To(Succeed())
 		defer func() {
 			Ω(os.Remove(file.Name())).To(Succeed())
