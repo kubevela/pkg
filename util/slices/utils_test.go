@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"k8s.io/utils/pointer"
 
 	"github.com/kubevela/pkg/util/slices"
 )
@@ -30,4 +31,38 @@ func TestMap(t *testing.T) {
 		return fmt.Sprintf("val:%d", i)
 	})
 	require.Equal(t, []string{"val:1", "val:2", "val:3"}, arr)
+}
+
+func TestFilter(t *testing.T) {
+	arr := slices.Filter([]int{1, 2, 3}, func(i int) bool {
+		return i%2 == 1
+	})
+	require.Equal(t, []int{1, 3}, arr)
+}
+
+func TestIndex(t *testing.T) {
+	idx := slices.Index([]int{1, 2, 3}, func(i int) bool {
+		return i%2 == 0
+	})
+	require.Equal(t, 1, idx)
+	idx = slices.Index([]int{1, 2, 3}, func(i int) bool {
+		return i%4 == 0
+	})
+	require.Equal(t, -1, idx)
+}
+
+func TestFind(t *testing.T) {
+	val := slices.Find([]int{1, 2, 3}, func(i int) bool {
+		return i%2 == 0
+	})
+	require.Equal(t, pointer.Int(2), val)
+	val = slices.Find([]int{1, 2, 3}, func(i int) bool {
+		return i%4 == 0
+	})
+	require.Nil(t, val)
+}
+
+func TestFlatten(t *testing.T) {
+	arr := slices.Flatten([][]int{{1, 2, 3}, {2, 4, 6}})
+	require.Equal(t, []int{1, 2, 3, 2, 4, 6}, arr)
 }
