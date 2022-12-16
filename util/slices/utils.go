@@ -24,3 +24,43 @@ func Map[T any, V any](arr []T, fn func(T) V) []V {
 	}
 	return _arr
 }
+
+// Filter functional filter for array items
+func Filter[T any](arr []T, fn func(T) bool) []T {
+	var _arr []T
+	for _, item := range arr {
+		if fn(item) {
+			_arr = append(_arr, item)
+		}
+	}
+	return _arr
+}
+
+// Index search the index of array item with function
+func Index[T any](arr []T, fn func(T) bool) int {
+	for idx, item := range arr {
+		if fn(item) {
+			return idx
+		}
+	}
+	return -1
+}
+
+// Find search the first item with function
+func Find[T any](arr []T, fn func(T) bool) *T {
+	if idx := Index(arr, fn); idx >= 0 {
+		return &arr[idx]
+	}
+	return nil
+}
+
+// Flatten the given arr
+func Flatten[T any](arr [][]T) []T {
+	var _arr []T
+	for _, items := range arr {
+		for _, item := range items {
+			_arr = append(_arr, item)
+		}
+	}
+	return _arr
+}
