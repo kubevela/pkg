@@ -108,3 +108,34 @@ func TestReduce(t *testing.T) {
 	}, 0)
 	require.Equal(t, 6, v)
 }
+
+type testContain struct {
+	x, y int
+}
+
+func (in testContain) Equal(v testContain) bool {
+	return v.x+v.y == in.x+in.y
+}
+
+type testContainP struct {
+	x, y int
+}
+
+func (in *testContainP) Equal(v *testContainP) bool {
+	return v.x+v.y == in.x+in.y
+}
+
+type testContainV struct {
+	x, y int
+}
+
+func TestContains(t *testing.T) {
+	require.True(t, slices.Contains([]testContain{{x: 1, y: 2}, {x: 3, y: 4}}, testContain{x: 2, y: 1}))
+	require.False(t, slices.Contains([]testContain{{x: 1, y: 2}, {x: 3, y: 4}}, testContain{x: 2, y: 2}))
+	require.True(t, slices.Contains([]testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, testContainP{x: 2, y: 1}))
+	require.False(t, slices.Contains([]testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, testContainP{x: 2, y: 2}))
+	require.True(t, slices.Contains([]*testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, &testContainP{x: 2, y: 1}))
+	require.False(t, slices.Contains([]*testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, &testContainP{x: 2, y: 2}))
+	require.True(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 1, y: 2}))
+	require.False(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 2, y: 1}))
+}

@@ -116,3 +116,27 @@ func Reduce[T any, V any](arr []T, reduce func(V, T) V, v V) V {
 	}
 	return v
 }
+
+type comparableItem[T any] interface {
+	Equal(T) bool
+}
+
+// Contains test if target array contains pivot
+// If T is a pointer, T needs to implement Equal(T) function, otherwise the
+// pointer address
+// If T is not a pointer, T could be either
+func Contains[T comparable](arr []T, pivot T) bool {
+	for _, item := range arr {
+		eq := item == pivot
+		if obj, ok := any(item).(comparableItem[T]); ok {
+			eq = obj.Equal(pivot)
+		}
+		if obj, ok := any(&item).(comparableItem[*T]); ok {
+			eq = obj.Equal(&pivot)
+		}
+		if eq {
+			return true
+		}
+	}
+	return false
+}
