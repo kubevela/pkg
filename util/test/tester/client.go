@@ -26,11 +26,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/k8s"
+	"github.com/kubevela/pkg/util/rand"
 )
 
 func TestClientFunctions(c client.Client) {
 	ctx := context.Background()
-	namespace, name := "default", "fake"
+	namespace, name := "test-"+rand.RandomString(4), "fake"
 	Ω(k8s.EnsureNamespace(ctx, c, namespace)).To(Succeed())
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
@@ -50,4 +51,5 @@ func TestClientFunctions(c client.Client) {
 	Ω(c.Scheme().IsGroupRegistered("apps")).To(BeTrue())
 	_, err := c.RESTMapper().ResourceSingularizer("configmaps")
 	Ω(err).To(Succeed())
+	Ω(k8s.ClearNamespace(ctx, c, namespace)).To(Succeed())
 }

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -37,4 +38,17 @@ func EnsureNamespace(ctx context.Context, c client.Client, ns string) error {
 		namespace.SetName(ns)
 		return c.Create(ctx, namespace)
 	}
+}
+
+// ClearNamespace clear namespace if exists.
+func ClearNamespace(ctx context.Context, c client.Client, ns string) error {
+	namespace := &corev1.Namespace{}
+	err := c.Get(ctx, types.NamespacedName{Name: ns}, namespace)
+	switch {
+	case err != nil && errors.IsNotFound(err):
+		return nil
+	case err != nil:
+		return err
+	}
+	return client.IgnoreNotFound(c.Delete(ctx, namespace))
 }
