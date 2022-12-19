@@ -108,3 +108,11 @@ func GroupBy[T any, V comparable](arr []T, fn func(T) V) map[V][]T {
 	}
 	return m
 }
+
+// Reduce array
+func Reduce[T any, V any](arr []T, reduce func(V, T) V, v V) V {
+	for _, item := range arr {
+		v = reduce(v, item)
+	}
+	return v
+}

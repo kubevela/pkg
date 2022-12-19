@@ -97,3 +97,14 @@ func TestGroupBy(t *testing.T) {
 		"zero":     {0}}
 	require.Equal(t, expected, groups)
 }
+
+func TestReduce(t *testing.T) {
+	arr := []int{0, 1, 2, 3, 4}
+	v := slices.Reduce(arr, func(cnt int, item int) int {
+		if item%2 == 0 {
+			cnt += item
+		}
+		return cnt
+	}, 0)
+	require.Equal(t, 6, v)
+}
