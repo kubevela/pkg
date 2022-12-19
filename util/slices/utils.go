@@ -64,3 +64,34 @@ func Flatten[T any](arr [][]T) []T {
 	}
 	return _arr
 }
+
+// All checks if all items satisfy the condition function
+func All[T any](arr []T, fn func(T) bool) bool {
+	for _, item := range arr {
+		if !fn(item) {
+			return false
+		}
+	}
+	return true
+}
+
+// Any checks if any item satisfy the condition function
+func Any[T any](arr []T, fn func(T) bool) bool {
+	for _, item := range arr {
+		if fn(item) {
+			return true
+		}
+	}
+	return false
+}
+
+// Count checks how many items satisfy the condition function
+func Count[T any](arr []T, fn func(T) bool) int {
+	cnt := 0
+	for _, item := range arr {
+		if fn(item) {
+			cnt++
+		}
+	}
+	return cnt
+}

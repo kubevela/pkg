@@ -66,3 +66,17 @@ func TestFlatten(t *testing.T) {
 	arr := slices.Flatten([][]int{{1, 2, 3}, {2, 4, 6}})
 	require.Equal(t, []int{1, 2, 3, 2, 4, 6}, arr)
 }
+
+func TestAll(t *testing.T) {
+	require.False(t, slices.All([]int{1, 2, 3}, func(i int) bool { return i%2 == 0 }))
+	require.True(t, slices.All([]int{0, 2, 4}, func(i int) bool { return i%2 == 0 }))
+}
+
+func TestAny(t *testing.T) {
+	require.True(t, slices.Any([]int{1, 2, 3}, func(i int) bool { return i%2 == 0 }))
+	require.False(t, slices.Any([]int{1, 3, 5}, func(i int) bool { return i%2 == 0 }))
+}
+
+func TestCount(t *testing.T) {
+	require.Equal(t, 2, slices.Count([]int{1, 2, 3}, func(i int) bool { return i%2 != 0 }))
+}
