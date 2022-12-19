@@ -64,3 +64,79 @@ func Flatten[T any](arr [][]T) []T {
 	}
 	return _arr
 }
+
+// All checks if all items satisfy the condition function
+func All[T any](arr []T, fn func(T) bool) bool {
+	for _, item := range arr {
+		if !fn(item) {
+			return false
+		}
+	}
+	return true
+}
+
+// Any checks if any item satisfy the condition function
+func Any[T any](arr []T, fn func(T) bool) bool {
+	for _, item := range arr {
+		if fn(item) {
+			return true
+		}
+	}
+	return false
+}
+
+// Count checks how many items satisfy the condition function
+func Count[T any](arr []T, fn func(T) bool) int {
+	cnt := 0
+	for _, item := range arr {
+		if fn(item) {
+			cnt++
+		}
+	}
+	return cnt
+}
+
+// GroupBy group by array items with given projection function
+func GroupBy[T any, V comparable](arr []T, fn func(T) V) map[V][]T {
+	m := map[V][]T{}
+	for _, item := range arr {
+		key := fn(item)
+		if _, found := m[key]; !found {
+			m[key] = []T{}
+		}
+		m[key] = append(m[key], item)
+	}
+	return m
+}
+
+// Reduce array
+func Reduce[T any, V any](arr []T, reduce func(V, T) V, v V) V {
+	for _, item := range arr {
+		v = reduce(v, item)
+	}
+	return v
+}
+
+type comparableItem[T any] interface {
+	Equal(T) bool
+}
+
+// Contains test if target array contains pivot
+// If T is a pointer, T needs to implement Equal(T) function, otherwise the
+// pointer address
+// If T is not a pointer, T could be either
+func Contains[T comparable](arr []T, pivot T) bool {
+	for _, item := range arr {
+		eq := item == pivot
+		if obj, ok := any(item).(comparableItem[T]); ok {
+			eq = obj.Equal(pivot)
+		}
+		if obj, ok := any(&item).(comparableItem[*T]); ok {
+			eq = obj.Equal(&pivot)
+		}
+		if eq {
+			return true
+		}
+	}
+	return false
+}

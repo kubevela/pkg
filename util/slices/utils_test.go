@@ -66,3 +66,76 @@ func TestFlatten(t *testing.T) {
 	arr := slices.Flatten([][]int{{1, 2, 3}, {2, 4, 6}})
 	require.Equal(t, []int{1, 2, 3, 2, 4, 6}, arr)
 }
+
+func TestAll(t *testing.T) {
+	require.False(t, slices.All([]int{1, 2, 3}, func(i int) bool { return i%2 == 0 }))
+	require.True(t, slices.All([]int{0, 2, 4}, func(i int) bool { return i%2 == 0 }))
+}
+
+func TestAny(t *testing.T) {
+	require.True(t, slices.Any([]int{1, 2, 3}, func(i int) bool { return i%2 == 0 }))
+	require.False(t, slices.Any([]int{1, 3, 5}, func(i int) bool { return i%2 == 0 }))
+}
+
+func TestCount(t *testing.T) {
+	require.Equal(t, 2, slices.Count([]int{1, 2, 3}, func(i int) bool { return i%2 != 0 }))
+}
+
+func TestGroupBy(t *testing.T) {
+	groups := slices.GroupBy([]int{-1, 1, 0, 2, -2}, func(t int) string {
+		if t > 0 {
+			return "positive"
+		} else if t < 0 {
+			return "negative"
+		} else {
+			return "zero"
+		}
+	})
+	expected := map[string][]int{
+		"positive": {1, 2},
+		"negative": {-1, -2},
+		"zero":     {0}}
+	require.Equal(t, expected, groups)
+}
+
+func TestReduce(t *testing.T) {
+	arr := []int{0, 1, 2, 3, 4}
+	v := slices.Reduce(arr, func(cnt int, item int) int {
+		if item%2 == 0 {
+			cnt += item
+		}
+		return cnt
+	}, 0)
+	require.Equal(t, 6, v)
+}
+
+type testContain struct {
+	x, y int
+}
+
+func (in testContain) Equal(v testContain) bool {
+	return v.x+v.y == in.x+in.y
+}
+
+type testContainP struct {
+	x, y int
+}
+
+func (in *testContainP) Equal(v *testContainP) bool {
+	return v.x+v.y == in.x+in.y
+}
+
+type testContainV struct {
+	x, y int
+}
+
+func TestContains(t *testing.T) {
+	require.True(t, slices.Contains([]testContain{{x: 1, y: 2}, {x: 3, y: 4}}, testContain{x: 2, y: 1}))
+	require.False(t, slices.Contains([]testContain{{x: 1, y: 2}, {x: 3, y: 4}}, testContain{x: 2, y: 2}))
+	require.True(t, slices.Contains([]testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, testContainP{x: 2, y: 1}))
+	require.False(t, slices.Contains([]testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, testContainP{x: 2, y: 2}))
+	require.True(t, slices.Contains([]*testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, &testContainP{x: 2, y: 1}))
+	require.False(t, slices.Contains([]*testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, &testContainP{x: 2, y: 2}))
+	require.True(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 1, y: 2}))
+	require.False(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 2, y: 1}))
+}
