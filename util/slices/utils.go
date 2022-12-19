@@ -95,3 +95,16 @@ func Count[T any](arr []T, fn func(T) bool) int {
 	}
 	return cnt
 }
+
+// GroupBy group by array items with given projection function
+func GroupBy[T any, V comparable](arr []T, fn func(T) V) map[V][]T {
+	m := map[V][]T{}
+	for _, item := range arr {
+		key := fn(item)
+		if _, found := m[key]; !found {
+			m[key] = []T{}
+		}
+		m[key] = append(m[key], item)
+	}
+	return m
+}

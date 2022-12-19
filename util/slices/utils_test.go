@@ -80,3 +80,20 @@ func TestAny(t *testing.T) {
 func TestCount(t *testing.T) {
 	require.Equal(t, 2, slices.Count([]int{1, 2, 3}, func(i int) bool { return i%2 != 0 }))
 }
+
+func TestGroupBy(t *testing.T) {
+	groups := slices.GroupBy([]int{-1, 1, 0, 2, -2}, func(t int) string {
+		if t > 0 {
+			return "positive"
+		} else if t < 0 {
+			return "negative"
+		} else {
+			return "zero"
+		}
+	})
+	expected := map[string][]int{
+		"positive": {1, 2},
+		"negative": {-1, -2},
+		"zero":     {0}}
+	require.Equal(t, expected, groups)
+}
