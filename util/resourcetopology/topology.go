@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-	"github.com/pkg/errors"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -125,7 +124,7 @@ func (r *engine) getSubResources(ctx context.Context, v cue.Value, resource k8s.
 	}
 	iter, err := subs.List()
 	if err != nil {
-		return nil, errors.Wrap(err, "subResources should be a list")
+		return nil, fmt.Errorf("subResources should be a list: %w", err)
 	}
 	for iter.Next() {
 		items, err := r.getResourcesWithSelector(ctx, iter.Value(), resource)
@@ -170,7 +169,7 @@ func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k
 		}
 		iter, err := v.List()
 		if err != nil {
-			return cue.Value{}, errors.Wrap(err, "rules should be a list")
+			return cue.Value{}, fmt.Errorf("rules should be a list: %w", err)
 		}
 		for iter.Next() {
 			re, err := r.getResourceIdentifierWithValue(iter.Value())
@@ -218,7 +217,7 @@ func (r *engine) getPeerResources(ctx context.Context, rule cue.Value, resource 
 	}
 	iter, err := peer.List()
 	if err != nil {
-		return nil, errors.Wrap(err, "peerResources should be a list")
+		return nil, fmt.Errorf("peerResources should be a list: %w", err)
 	}
 	peerResources := make([]k8s.ResourceIdentifier, 0)
 	for iter.Next() {

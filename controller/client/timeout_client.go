@@ -61,10 +61,10 @@ type TimeoutClient struct {
 }
 
 // Get .
-func (in *TimeoutClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (in *TimeoutClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	ctx, cancel := in.WithTimeout(ctx)
 	defer cancel()
-	return in.Client.Get(ctx, key, obj)
+	return in.Client.Get(ctx, key, obj, opts...)
 }
 
 // List .
@@ -117,6 +117,14 @@ func (in *TimeoutClient) Status() client.StatusWriter {
 	}
 }
 
+// SubResource .
+func (in *TimeoutClient) SubResource(subResource string) client.SubResourceClient {
+	return &TimeoutSubResourceClient{
+		SubResourceClient: in.Client.SubResource(subResource),
+		TimeoutOptions:    in.TimeoutOptions,
+	}
+}
+
 // TimeoutStatusWriter add timeout limit for requests
 type TimeoutStatusWriter struct {
 	client.StatusWriter
@@ -124,17 +132,51 @@ type TimeoutStatusWriter struct {
 }
 
 // Update .
-func (in *TimeoutStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (in *TimeoutStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.StatusWriter.Update(ctx, obj, opts...)
 }
 
 // Patch .
-func (in *TimeoutStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (in *TimeoutStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.StatusWriter.Patch(ctx, obj, patch, opts...)
+}
+
+// TimeoutSubResourceClient add timeout limit for requests
+type TimeoutSubResourceClient struct {
+	client.SubResourceClient
+	TimeoutOptions
+}
+
+// Get .
+func (in *TimeoutSubResourceClient) Get(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceGetOption) error {
+	ctx, cancel := in.WithTimeout(ctx)
+	defer cancel()
+	return in.SubResourceClient.Get(ctx, obj, subResource, opts...)
+}
+
+// Create .
+func (in *TimeoutSubResourceClient) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	ctx, cancel := in.WithMutatingTimeout(ctx)
+	defer cancel()
+	return in.SubResourceClient.Create(ctx, obj, subResource, opts...)
+}
+
+// Update .
+func (in *TimeoutSubResourceClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+	ctx, cancel := in.WithMutatingTimeout(ctx)
+	defer cancel()
+	return in.SubResourceClient.Update(ctx, obj, opts...)
+}
+
+// Patch .
+func (in *TimeoutSubResourceClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	ctx, cancel := in.WithMutatingTimeout(ctx)
+	defer cancel()
+	return in.SubResourceClient.Patch(ctx, obj, patch, opts...)
 }
 
 // DefaultTimeoutClientOptions options for default timeout

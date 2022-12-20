@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -41,7 +40,7 @@ func TestLog(t *testing.T) {
 		fmt.Println(v)
 	}))
 	time.Sleep(time.Millisecond * 30)
-	err := errors.New("mock error")
+	err := fmt.Errorf("mock error")
 	ctx.Error(err, "test case", "generated", "test_log")
 	ctx.ErrorDepth(1, err, "test case", "generated", "test_log")
 	spanCtx.Commit("finished")

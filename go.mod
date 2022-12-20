@@ -5,15 +5,16 @@ go 1.19
 require (
 	cuelang.org/go v0.5.0-beta.2.0.20230130095913-d573e0c2f041
 	github.com/emicklei/go-restful/v3 v3.9.0
+	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/go-stack/stack v1.8.1
 	github.com/google/go-cmp v0.5.9
-	github.com/klauspost/compress v1.15.12
-	github.com/oam-dev/cluster-gateway v1.7.0-alpha.1
-	github.com/onsi/ginkgo/v2 v2.6.0
-	github.com/onsi/gomega v1.24.1
+	github.com/klauspost/compress v1.16.3
+	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1
+	github.com/onsi/ginkgo/v2 v2.9.2
+	github.com/onsi/gomega v1.27.5
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.14.0
-	github.com/spf13/cobra v1.6.0
+	github.com/spf13/cobra v1.6.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
 	k8s.io/api v0.26.3
@@ -21,11 +22,11 @@ require (
 	k8s.io/apiserver v0.26.3
 	k8s.io/client-go v0.26.3
 	k8s.io/klog/v2 v2.80.1
-	k8s.io/kubectl v0.25.3
+	k8s.io/kubectl v0.26.3
 	k8s.io/utils v0.0.0-20221128185143-99ec85e7a448
 	sigs.k8s.io/apiserver-runtime v1.1.2-0.20221118041430-0a6394f6dda3
 	sigs.k8s.io/controller-runtime v0.14.5
-	sigs.k8s.io/controller-tools v0.9.2
+	sigs.k8s.io/controller-tools v0.11.3
 	sigs.k8s.io/yaml v1.3.0
 )
 
@@ -40,7 +41,6 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
@@ -51,13 +51,15 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
 	github.com/go-openapi/jsonreference v0.20.0 // indirect
 	github.com/go-openapi/swag v0.19.14 // indirect
-	github.com/gobuffalo/flect v0.2.5 // indirect
+	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
+	github.com/gobuffalo/flect v0.3.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
-	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/cel-go v0.12.6 // indirect
 	github.com/google/gnostic v0.5.7-v3refs // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
+	github.com/google/pprof v0.0.0-20210407192527-94a9f03dee38 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
@@ -97,15 +99,15 @@ require (
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
 	golang.org/x/crypto v0.1.0 // indirect
-	golang.org/x/mod v0.6.0 // indirect
-	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/mod v0.9.0 // indirect
+	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
-	golang.org/x/sync v0.0.0-20220819030929-7fc1605a5dde // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/term v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sync v0.1.0 // indirect
+	golang.org/x/sys v0.6.0 // indirect
+	golang.org/x/term v0.6.0 // indirect
+	golang.org/x/text v0.8.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.2.0 // indirect
+	golang.org/x/tools v0.7.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220519153652-3a47de7e79bd // indirect
 	google.golang.org/grpc v1.49.0 // indirect
@@ -126,6 +128,8 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 )
 
-replace cloud.google.com/go => cloud.google.com/go v0.100.2
-
-replace github.com/oam-dev/cluster-gateway => github.com/Somefive/cluster-gateway v1.3.3-0.20230327111703-517ceb0c3f07
+replace (
+	cloud.google.com/go => cloud.google.com/go v0.100.2
+	github.com/docker/docker => github.com/moby/moby v20.10.20+incompatible
+	sigs.k8s.io/apiserver-network-proxy/konnectivity-client => sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.36
+)
