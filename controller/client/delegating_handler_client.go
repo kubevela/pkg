@@ -25,16 +25,16 @@ import (
 // DelegatingHandlerClient override the original client's function
 type DelegatingHandlerClient struct {
 	client.Client
-	Getter func(ctx context.Context, key client.ObjectKey, obj client.Object) error
+	Getter func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error
 	Lister func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
 }
 
 // Get resource by overridden getter
-func (c DelegatingHandlerClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c DelegatingHandlerClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	if c.Getter != nil {
-		return c.Getter(ctx, key, obj)
+		return c.Getter(ctx, key, obj, opts...)
 	}
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 // List resource by overridden lister

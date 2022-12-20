@@ -76,8 +76,9 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 			uncachedStructuredGVKs: uncachedStructuredGVKs,
 			cachedUnstructuredGVKs: cachedUnstructuredGVKs,
 		},
-		Writer:       mClient,
-		StatusClient: mClient,
+		Writer:                       mClient,
+		StatusClient:                 mClient,
+		SubResourceClientConstructor: mClient,
 	}
 
 	return dClient, nil
