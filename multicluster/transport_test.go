@@ -18,20 +18,13 @@ package multicluster
 
 import (
 	"context"
+	"k8s.io/client-go/rest"
 	"net/http"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
-
-type fakeRoundTripper struct{}
-
-func (rt *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	return &http.Response{Request: req}, nil
-}
-
-func (rt *fakeRoundTripper) CancelRequest(req *http.Request) {}
 
 func TestTransport(t *testing.T) {
 	r := require.New(t)
@@ -55,4 +48,19 @@ func TestTransport(t *testing.T) {
 
 	// Test cancel request
 	_rt.(*Transport).CancelRequest(req)
+}
+
+func TestEnableMultiCluster(t *testing.T) {
+	r := require.New(t)
+	config := &rest.Config{}
+	// test it add RoundTripperWrapper to config and not wrap it twice
+	err := EnableMultiCluster(config)
+	r.NoError(err)
+	err = EnableMultiCluster(config)
+	r.NoError(err)
+	req := &http.Request{URL: &url.URL{Path: "/test-path"}}
+	rt := &fakeRoundTripper{}
+	resp, err := config.WrapTransport(rt).RoundTrip(req.WithContext(WithCluster(context.Background(), "example")))
+	r.NoError(err)
+	r.Equal("/apis/cluster.core.oam.dev/v1alpha1/clustergateways/example/proxy/test-path", resp.Request.URL.Path)
 }

@@ -17,7 +17,10 @@ limitations under the License.
 package multicluster
 
 import (
+	"context"
+	"k8s.io/client-go/rest"
 	"net/http"
+	"net/url"
 	"path"
 	"strings"
 
@@ -69,6 +72,28 @@ func NewTransportWrapper(options ...TransportOption) transport.WrapperFunc {
 	}
 }
 
+// EnableMultiCluster enable config to access other cluster through cluster-gateway.
+// This can be called multiple times without worrying the duplicated wrapping
+func EnableMultiCluster(config *rest.Config, options ...TransportOption) error {
+	rt := &fakeRoundTripper{}
+	wrapFunc := config.WrapTransport
+	if wrapFunc == nil {
+		config.Wrap(NewTransportWrapper(options...))
+		return nil
+	}
+	tripper := wrapFunc(rt)
+	mockReq := &http.Request{URL: &url.URL{Path: "/test-path"}}
+	mockReq = mockReq.WithContext(context.WithValue(context.Background(), clusterKey, "non-local"))
+	response, err := tripper.RoundTrip(mockReq)
+	if err != nil {
+		return err
+	}
+	if !strings.HasPrefix(response.Request.URL.Path, "/apis/cluster.core.oam.dev/v1alpha1/clustergateways") {
+		config.Wrap(NewTransportWrapper())
+	}
+	return nil
+}
+
 var _ http.RoundTripper = &Transport{}
 var _ knet.RoundTripperWrapper = &Transport{}
 
@@ -116,3 +141,11 @@ func (t *Transport) CancelRequest(req *http.Request) {
 func (t *Transport) WrappedRoundTripper() http.RoundTripper {
 	return t.delegate
 }
+
+type fakeRoundTripper struct{}
+
+func (rt *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return &http.Response{Request: req}, nil
+}
+
+func (rt *fakeRoundTripper) CancelRequest(req *http.Request) {}
