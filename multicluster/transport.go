@@ -18,7 +18,6 @@ package multicluster
 
 import (
 	"context"
-	"k8s.io/client-go/rest"
 	"net/http"
 	"net/url"
 	"path"
@@ -26,6 +25,7 @@ import (
 
 	clustergatewayconfig "github.com/oam-dev/cluster-gateway/pkg/config"
 	knet "k8s.io/apimachinery/pkg/util/net"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/transport"
 	"k8s.io/utils/pointer"
 
