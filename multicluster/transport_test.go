@@ -33,6 +33,18 @@ func (rt *fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error)
 
 func (rt *fakeRoundTripper) CancelRequest(req *http.Request) {}
 
+type fakeWrapper struct {
+	delegate http.RoundTripper
+}
+
+func (rt *fakeWrapper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return rt.delegate.RoundTrip(req)
+}
+
+func (rt *fakeWrapper) WrappedRoundTripper() http.RoundTripper {
+	return rt.delegate
+}
+
 func TestTransport(t *testing.T) {
 	r := require.New(t)
 	rt := &fakeRoundTripper{}
@@ -52,6 +64,12 @@ func TestTransport(t *testing.T) {
 	resp, err = _rt.RoundTrip(req.WithContext(WithCluster(context.Background(), "example")))
 	r.NoError(err)
 	r.Equal("/apis/cluster.core.oam.dev/v1alpha1/clustergateways/static/proxy/test-path", resp.Request.URL.Path)
+
+	// Test embedded transport
+	_tp := NewTransportWrapper()(&fakeWrapper{delegate: tp})
+	resp, err = _tp.RoundTrip(req.WithContext(WithCluster(context.Background(), "example")))
+	r.NoError(err)
+	r.Equal("/apis/cluster.core.oam.dev/v1alpha1/clustergateways/example/proxy/test-path", resp.Request.URL.Path)
 
 	// Test cancel request
 	_rt.(*Transport).CancelRequest(req)

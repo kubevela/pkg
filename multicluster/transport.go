@@ -52,6 +52,17 @@ func (op ForCluster) ApplyToTransport(t *Transport) {
 	t.cluster = pointer.String(string(op))
 }
 
+func asTransport(rt http.RoundTripper) (*Transport, bool) {
+	switch t := rt.(type) {
+	case *Transport:
+		return t, true
+	case knet.RoundTripperWrapper:
+		return asTransport(t.WrappedRoundTripper())
+	default:
+		return nil, false
+	}
+}
+
 // NewTransport create a transport instance for handling multi-cluster request
 func NewTransport(rt http.RoundTripper) *Transport {
 	return &Transport{delegate: rt}
@@ -60,12 +71,18 @@ func NewTransport(rt http.RoundTripper) *Transport {
 // NewTransportWrapper create a WrapperFunc for wrapping RoundTripper with
 // multi-cluster transport
 func NewTransportWrapper(options ...TransportOption) transport.WrapperFunc {
-	return func(rt http.RoundTripper) http.RoundTripper {
-		t := NewTransport(rt)
+	return func(rt http.RoundTripper) (ret http.RoundTripper) {
+		t, ok := asTransport(rt)
+		if ok {
+			ret = rt
+		} else {
+			t = NewTransport(rt)
+			ret = t
+		}
 		for _, op := range options {
 			op.ApplyToTransport(t)
 		}
-		return t
+		return ret
 	}
 }
 
