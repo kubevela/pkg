@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubevela/pkg/util/maps"
+	"github.com/kubevela/pkg/util/slices"
 )
 
 func TestUtils(t *testing.T) {
@@ -29,6 +30,8 @@ func TestUtils(t *testing.T) {
 		"a": 1,
 		"b": 2,
 	}
-	require.Equal(t, []string{"a", "b"}, maps.Keys(m))
-	require.Equal(t, []int{1, 2}, maps.Values(m))
+	require.True(t, slices.Contains(maps.Keys(m), "a"))
+	require.True(t, slices.Contains(maps.Keys(m), "b"))
+	require.True(t, slices.Contains(maps.Values(m), 1))
+	require.True(t, slices.Contains(maps.Values(m), 2))
 }

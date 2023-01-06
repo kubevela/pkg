@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubevela/pkg/util/maps"
+	"github.com/kubevela/pkg/util/slices"
 )
 
 func TestSyncMap(t *testing.T) {
@@ -35,8 +36,10 @@ func TestSyncMap(t *testing.T) {
 	require.Equal(t, 1, v)
 	m.Set("c", 3)
 	m.Del("a")
-	require.Equal(t, []string{"b", "c"}, m.Keys())
-	require.Equal(t, []int{2, 3}, m.Values())
+	require.True(t, slices.Contains(m.Keys(), "b"))
+	require.True(t, slices.Contains(m.Keys(), "c"))
+	require.True(t, slices.Contains(m.Values(), 2))
+	require.True(t, slices.Contains(m.Values(), 3))
 	cnt := 0
 	m.Range(func(i string, v int) { cnt += v })
 	require.Equal(t, 5, cnt)

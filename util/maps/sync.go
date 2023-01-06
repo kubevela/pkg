@@ -18,17 +18,21 @@ package maps
 
 import "sync"
 
+// SyncMap defines the thread-safe map
 type SyncMap[K comparable, V any] struct {
 	mu sync.RWMutex
 	m  map[K]V
 }
 
+// NewSyncMap create a new SyncMap
 func NewSyncMap[K comparable, V any]() *SyncMap[K, V] {
 	return &SyncMap[K, V]{
 		m: map[K]V{},
 	}
 }
 
+// NewSyncMapFrom create a new SyncMap from existing map. The data is copied
+// instead of directly referring to the given map.
 func NewSyncMapFrom[K comparable, V any](in map[K]V) *SyncMap[K, V] {
 	out := NewSyncMap[K, V]()
 	for k, v := range in {
@@ -37,6 +41,7 @@ func NewSyncMapFrom[K comparable, V any](in map[K]V) *SyncMap[K, V] {
 	return out
 }
 
+// Get return the value for the given key
 func (in *SyncMap[K, V]) Get(key K) (V, bool) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
@@ -44,18 +49,21 @@ func (in *SyncMap[K, V]) Get(key K) (V, bool) {
 	return val, found
 }
 
+// Set the value for the given key
 func (in *SyncMap[K, V]) Set(key K, val V) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	in.m[key] = val
 }
 
+// Del delete the value for the given key
 func (in *SyncMap[K, V]) Del(key K) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	delete(in.m, key)
 }
 
+// Keys return a copy of keys
 func (in *SyncMap[K, V]) Keys() []K {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
@@ -66,6 +74,7 @@ func (in *SyncMap[K, V]) Keys() []K {
 	return keys
 }
 
+// Values return a copy of values
 func (in *SyncMap[K, V]) Values() []V {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
@@ -76,6 +85,7 @@ func (in *SyncMap[K, V]) Values() []V {
 	return keys
 }
 
+// Range function for ranging over the map, it uses RLock during ranging
 func (in *SyncMap[K, V]) Range(f func(K, V)) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
