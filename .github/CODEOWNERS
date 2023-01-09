@@ -5,3 +5,7 @@ multicluster/       @Somefive @chivalryq
 monitor/            @Somefive @FogDong @leejanee
 util/               @Somefive @FogDong
 util/compression    @Somefive @charlie0129
+cue/                @Somefive @FogDong
+apis/               @Somefive @FogDong
+crds/               @Somefive @FogDong
+hack/               @Somefive @FogDong

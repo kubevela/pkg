@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package kubebuilder
+package util
 
 import (
-	"k8s.io/client-go/rest"
-
-	"github.com/kubevela/pkg/util/test/bootstrap"
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/format"
 )
 
-var cfg = bootstrap.InitKubeBuilderForTest()
-
-// GetConfig get rest.Config generated from kubebuilder
-func GetConfig() *rest.Config {
-	return cfg
+// ToString stringify cue.Value with reference resolved
+func ToString(v cue.Value, opts ...cue.Option) (string, error) {
+	opts = append([]cue.Option{cue.Final(), cue.Docs(true), cue.All()}, opts...)
+	node := v.Syntax(opts...)
+	bs, err := format.Node(node)
+	if err != nil {
+		return "", err
+	}
+	return string(bs), nil
 }

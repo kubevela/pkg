@@ -14,20 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package multicluster_test
+package http_test
 
 import (
+	"context"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/require"
 
-	"github.com/kubevela/pkg/util/test/bootstrap"
+	"github.com/kubevela/pkg/cue/cuex/providers/http"
 )
 
-var _ = bootstrap.InitKubeBuilderForTest()
+func TestDo(t *testing.T) {
+	ret, err := http.Do(context.Background(), &http.DoParams{
+		Method: "GET", URL: "https://api64.ipify.org/",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 200, ret.Response.StatusCode)
 
-func TestMulticluster(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Run multicluster package test")
+	_, err = http.Do(context.Background(), &http.DoParams{
+		Method: "GET", URL: "https://localhost:9999/",
+	})
+	require.Error(t, err)
 }

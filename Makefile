@@ -1,3 +1,6 @@
+generate:
+	go generate ./apis/...
+
 fmt:
 	go fmt ./...
 

@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package multicluster_test
+// Api versions allow the api contract for a resource to be changed while keeping
+// backward compatibility by support multiple concurrent versions
+// of the same resource
 
-import (
-	"testing"
-
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
-	"github.com/kubevela/pkg/util/test/bootstrap"
-)
-
-var _ = bootstrap.InitKubeBuilderForTest()
-
-func TestMulticluster(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Run multicluster package test")
-}
+// Package v1alpha1 contains types required for v1alpha1
+// +k8s:openapi-gen=true
+// +k8s:deepcopy-gen=package,register
+// +k8s:defaulter-gen=TypeMeta
+// +groupName=cuex.oam.dev
+package v1alpha1
