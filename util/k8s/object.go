@@ -127,3 +127,10 @@ func DeleteLabel(obj runtime.Object, key string) error {
 	delete(labels, key)
 	return metadataAccessor.SetLabels(obj, labels)
 }
+
+// AsStructured convert unstructured to structured
+func AsStructured[T any](obj *unstructured.Unstructured) (*T, error) {
+	v := new(T)
+	err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, v)
+	return v, err
+}

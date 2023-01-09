@@ -43,4 +43,6 @@ func TestSyncMap(t *testing.T) {
 	cnt := 0
 	m.Range(func(i string, v int) { cnt += v })
 	require.Equal(t, 5, cnt)
+	m.Load(map[string]int{"c": 3})
+	require.Equal(t, 1, len(m.Keys()))
 }

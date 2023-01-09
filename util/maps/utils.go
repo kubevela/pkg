@@ -33,3 +33,21 @@ func Values[K comparable, V any](m map[K]V) []V {
 	}
 	return s
 }
+
+// Map functional conversion for map items
+func Map[K comparable, U any, V any](m map[K]U, fn func(U) V) map[K]V {
+	_m := make(map[K]V, len(m))
+	for key, val := range m {
+		_m[key] = fn(val)
+	}
+	return _m
+}
+
+// Copy return a copy of given map
+func Copy[K comparable, V any](m map[K]V) map[K]V {
+	_m := make(map[K]V)
+	for k, v := range m {
+		_m[k] = v
+	}
+	return _m
+}
