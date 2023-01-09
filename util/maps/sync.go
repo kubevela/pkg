@@ -93,3 +93,11 @@ func (in *SyncMap[K, V]) Range(f func(K, V)) {
 		f(k, v)
 	}
 }
+
+// Load function for reset the underlying map, copies all data from the given map
+func (in *SyncMap[K, V]) Load(m map[K]V) {
+	_m := Copy(m)
+	in.mu.Lock()
+	defer in.mu.Unlock()
+	in.m = _m
+}

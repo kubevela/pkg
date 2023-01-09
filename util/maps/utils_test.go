@@ -17,6 +17,7 @@ limitations under the License.
 package maps_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -34,4 +35,12 @@ func TestUtils(t *testing.T) {
 	require.True(t, slices.Contains(maps.Keys(m), "b"))
 	require.True(t, slices.Contains(maps.Values(m), 1))
 	require.True(t, slices.Contains(maps.Values(m), 2))
+
+	require.Equal(t, map[string]string{
+		"a": "1",
+		"b": "2",
+	}, maps.Map(m, func(x int) string { return fmt.Sprintf("%d", x) }))
+
+	_m := maps.Copy(m)
+	require.Equal(t, 2, len(_m))
 }

@@ -340,3 +340,20 @@ func TestDeleteLabel(t *testing.T) {
 		})
 	}
 }
+
+func TestAsStructured(t *testing.T) {
+	obj := &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "v1",
+		"kind":       "ConfigMap",
+		"metadata": map[string]interface{}{
+			"name": "a",
+		},
+		"data": map[string]interface{}{
+			"key": "value",
+		},
+	}}
+	cm, err := k8s.AsStructured[corev1.ConfigMap](obj)
+	require.NoError(t, err)
+	require.Equal(t, "a", cm.GetName())
+	require.Equal(t, "value", cm.Data["key"])
+}
