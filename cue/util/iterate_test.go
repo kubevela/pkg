@@ -47,3 +47,26 @@ func TestIterate(t *testing.T) {
 	require.Equal(t, []string{"a", "b", "c", "val"}, results)
 	require.True(t, stop)
 }
+
+func TestIterateWithOrder(t *testing.T) {
+	value := cuecontext.New().CompileString(`
+		a: "a" @step(2)
+		#x: string
+		x: "x"
+		b: {
+			c: "val" @step(1)
+			d: "d" @step(2)
+			e: {
+				f: "f"
+				g: "g"
+			}
+		} @step(1)
+	`)
+	var results []string
+	stop := util.Iterate(value, func(v cue.Value) (stop bool) {
+		results = append(results, v.Path().String())
+		return false
+	})
+	require.Equal(t, []string{"b.c", "b.d", "b.e.f", "b.e.g", "b.e", "b", "a", "x", ""}, results)
+	require.False(t, stop)
+}
