@@ -30,7 +30,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	velaclient "github.com/kubevela/pkg/controller/client"
-	"github.com/kubevela/pkg/test/kubebuilder"
+	"github.com/kubevela/pkg/util/singleton"
+	"github.com/kubevela/pkg/util/test/bootstrap"
 	"github.com/kubevela/pkg/util/test/tester"
 )
 
@@ -39,10 +40,14 @@ func TestMulticluster(t *testing.T) {
 	RunSpecs(t, "Run client package test")
 }
 
+var _ = bootstrap.InitKubeBuilderForTest()
+
 var _ = Describe("Test clients", func() {
 
 	It("Test default controller client", func() {
-		_cache, err := cache.New(kubebuilder.GetConfig(), cache.Options{})
+		cfg := singleton.KubeConfig.Get()
+
+		_cache, err := cache.New(cfg, cache.Options{})
 		Ω(err).To(Succeed())
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -52,7 +57,7 @@ var _ = Describe("Test clients", func() {
 		}()
 
 		velaclient.CachedGVKs = "Deployment.apps.v1"
-		_client, err := velaclient.DefaultNewControllerClient(_cache, kubebuilder.GetConfig(), client.Options{}, &corev1.Secret{})
+		_client, err := velaclient.DefaultNewControllerClient(_cache, cfg, client.Options{}, &corev1.Secret{})
 		Ω(err).To(Succeed())
 		tester.TestClientFunctions(_client)
 		obj := &unstructured.Unstructured{Object: map[string]interface{}{

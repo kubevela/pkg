@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,20 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package multicluster_test
+package util_test
 
 import (
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	"cuelang.org/go/cue/cuecontext"
+	"github.com/stretchr/testify/require"
 
-	"github.com/kubevela/pkg/util/test/bootstrap"
+	"github.com/kubevela/pkg/cue/util"
 )
 
-var _ = bootstrap.InitKubeBuilderForTest()
-
-func TestMulticluster(t *testing.T) {
-	RegisterFailHandler(Fail)
-	RunSpecs(t, "Run multicluster package test")
+func TestToString(t *testing.T) {
+	ctx := cuecontext.New()
+	v := ctx.CompileString(`// +usage=x
+x: y
+y: 5
+_z: 1`)
+	s, err := util.ToString(v)
+	require.NoError(t, err)
+	x := `{
+	// +usage=x
+	x:  5
+	y:  5
+	_z: 1
+}`
+	require.Equal(t, x, s)
 }

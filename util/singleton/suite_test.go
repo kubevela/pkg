@@ -25,13 +25,15 @@ import (
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 
 	"github.com/kubevela/pkg/util/singleton"
-	_ "github.com/kubevela/pkg/util/test/bootstrap"
+	"github.com/kubevela/pkg/util/test/bootstrap"
 )
 
 func TestSingletonInit(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Test Singleton Init")
 }
+
+var _ = bootstrap.InitKubeBuilderForTest()
 
 var _ = Describe("Test init", func() {
 	It("Test singleton clients", func() {

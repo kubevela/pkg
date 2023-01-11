@@ -9,3 +9,4 @@ coverage:
 ignore:
   - "test/**"
   - "util/test/**"
+  - "**/zz_generated.deepcopy.go"

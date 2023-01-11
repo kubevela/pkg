@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"testing"
 
+	"cuelang.org/go/pkg/strconv"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/pointer"
 
@@ -138,4 +139,33 @@ func TestContains(t *testing.T) {
 	require.False(t, slices.Contains([]*testContainP{{x: 1, y: 2}, {x: 3, y: 4}}, &testContainP{x: 2, y: 2}))
 	require.True(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 1, y: 2}))
 	require.False(t, slices.Contains([]testContainV{{x: 1, y: 2}, {x: 3, y: 4}}, testContainV{x: 2, y: 1}))
+}
+
+type iterTest struct {
+	val int
+}
+
+func (in *iterTest) Next() bool {
+	in.val++
+	return in.val <= 3
+}
+
+func (in *iterTest) Value() int {
+	return in.val
+}
+
+func TestIterToArray(t *testing.T) {
+	it := iterTest{val: 0}
+	arr := slices.IterToArray[iterTest, int](&it)
+	require.Equal(t, []int{1, 2, 3}, arr)
+}
+
+func TestSort(t *testing.T) {
+	vs := []string{"x2", "y3", "z1"}
+	slices.Sort(vs, func(x, y string) bool {
+		i, _ := strconv.ParseInt(x[len(x)-1:], 10, 8)
+		j, _ := strconv.ParseInt(y[len(y)-1:], 10, 8)
+		return i < j
+	})
+	require.Equal(t, []string{"z1", "x2", "y3"}, vs)
 }

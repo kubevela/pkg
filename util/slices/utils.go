@@ -16,6 +16,8 @@ limitations under the License.
 
 package slices
 
+import "sort"
+
 // Map functional conversion for array items
 func Map[T any, V any](arr []T, fn func(T) V) []V {
 	_arr := make([]V, len(arr))
@@ -139,4 +141,28 @@ func Contains[T comparable](arr []T, pivot T) bool {
 		}
 	}
 	return false
+}
+
+// Iterable .
+type Iterable[T any, V any] interface {
+	Next() bool
+	Value() V
+	*T
+}
+
+// IterToArray convert iterable to list. Next() should be called to get the first
+// item
+func IterToArray[U any, V any, T Iterable[U, V]](iter T) []V {
+	var arr []V
+	for iter != nil && iter.Next() {
+		arr = append(arr, iter.Value())
+	}
+	return arr
+}
+
+// Sort given array
+func Sort[T any](arr []T, cmp func(T, T) bool) {
+	sort.Slice(arr, func(i, j int) bool {
+		return cmp(arr[i], arr[j])
+	})
 }
