@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 
-	"github.com/kubevela/pkg/apis/cuex/v1alpha1"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/maps"
 	"github.com/kubevela/pkg/util/singleton"

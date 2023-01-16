@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	Group   = "cuex.oam.dev"
+	Group   = "cue.oam.dev"
 	Version = "v1alpha1"
 )
 

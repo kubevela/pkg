@@ -29,7 +29,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 
-	"github.com/kubevela/pkg/apis/cuex/v1alpha1"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/cue/cuex/runtime"
 )
 

@@ -129,8 +129,8 @@ var EnableExternalPackageWatchForDefaultCompiler = false
 
 // AddFlags add flags for configuring cuex default compiler
 func AddFlags(set *pflag.FlagSet) {
-	set.BoolVarP(&EnableExternalPackageForDefaultCompiler, "cuex-enable-external-package", "", EnableExternalPackageForDefaultCompiler, "enable load external package for cuex default compiler")
-	set.BoolVarP(&EnableExternalPackageWatchForDefaultCompiler, "cuex-enable-external-package-watch", "", EnableExternalPackageWatchForDefaultCompiler, "enable watch external package changes for cuex default compiler")
+	set.BoolVarP(&EnableExternalPackageForDefaultCompiler, "enable-external-cue-package", "", EnableExternalPackageForDefaultCompiler, "enable load external package for cuex default compiler")
+	set.BoolVarP(&EnableExternalPackageWatchForDefaultCompiler, "list-watch-external-cue-package", "", EnableExternalPackageWatchForDefaultCompiler, "enable watch external package changes for cuex default compiler")
 }
 
 // CompileString use cuex default compiler to compile cue string

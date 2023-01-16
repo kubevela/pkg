@@ -40,7 +40,7 @@ func TestPackageManager(t *testing.T) {
 	RunSpecs(t, "Run package manager test")
 }
 
-var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("../../../crds/cuex.oam.dev_packages.yaml"))
+var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("../../../crds/cue.oam.dev_packages.yaml"))
 
 var _ = Describe("Test Cuex Runtime", func() {
 

@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
-  name: packages.cuex.oam.dev
+  name: packages.cue.oam.dev
 spec:
-  group: cuex.oam.dev
+  group: cue.oam.dev
   names:
     kind: Package
     listKind: PackageList

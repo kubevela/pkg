@@ -31,7 +31,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kubevela/pkg/apis/cuex/v1alpha1"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/test/bootstrap"
@@ -42,7 +42,7 @@ func TestCuex(t *testing.T) {
 	RunSpecs(t, "Run Cuex test")
 }
 
-var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("../../crds/cuex.oam.dev_packages.yaml"))
+var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("../../crds/cue.oam.dev_packages.yaml"))
 
 type toUpperVar struct {
 	Input  string `json:"input"`

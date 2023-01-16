@@ -27,7 +27,7 @@ import (
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	"github.com/kubevela/pkg/apis/cuex/v1alpha1"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 )
 
 var _ ProviderFn = GenericProviderFn[any, any](nil)
@@ -76,6 +76,9 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 		if err != nil {
 			return value, err
 		}
+		defer func() {
+			_ = resp.Body.Close()
+		}()
 		if bs, err = io.ReadAll(resp.Body); err != nil {
 			return value, err
 		}

@@ -22,5 +22,5 @@ limitations under the License.
 // +k8s:openapi-gen=true
 // +k8s:deepcopy-gen=package,register
 // +k8s:defaulter-gen=TypeMeta
-// +groupName=cuex.oam.dev
+// +groupName=cue.oam.dev
 package v1alpha1

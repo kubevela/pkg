@@ -35,7 +35,7 @@ To allow users make extension to the native CUE rendering process, CueX uses a c
 }
 ```
 
-It will search for the **ProviderFn** in the given **Provider** and call the function to execute with the CUE value as inputs. Then it will fill back the returned CUE value. In this way, it is possible to define customized functions for either rendering or pure executing.
+It will search for the **ProviderFn** (specified by #do) in the given **Provider** and call the function to execute with the CUE value as inputs. Then it will fill back the returned CUE value. In this way, it is possible to define customized functions for either rendering or pure executing.
 
 Each time a **ProviderFn** is called, the **Compiler** will repeat the *Resolve* work after the result of last execution is filled back. Executed CUE values will not be executed again in the later process. The repeated `Resolve` stops when no more CUE values that needs to be run.
 
@@ -53,12 +53,12 @@ body: req.response.body
 
 ### External Imports
 
-In the case user wants to make integration, there is also a Kubernetes CustomResource defined as [packages.cuex.oam.dev](../../crds/cuex.oam.dev_packages.yaml). By building server and host it somewhere, you can register it as a **Provider** in **Package**.
+In the case user wants to make integration, there is also a Kubernetes CustomResource defined as [packages.cue.oam.dev](../../crds/cuex.oam.dev_packages.yaml). By building server and host it somewhere, you can register it as a **Provider** in **Package**.
 
 For example, if you want to register a external package to provide mysql access in CUE, you can create a CustomResource in your Kubernetes cluster as
 
 ```yaml
-apiVersion: cuex.oam.dev/v1alpha1
+apiVersion: cue.oam.dev/v1alpha1
 kind: Package
 metadata:
   name: mysql

@@ -19,7 +19,7 @@ package runtime
 import (
 	"cuelang.org/go/cue/build"
 
-	"github.com/kubevela/pkg/apis/cuex/v1alpha1"
+	"github.com/kubevela/pkg/apis/cue/v1alpha1"
 	"github.com/kubevela/pkg/cue/util"
 	"github.com/kubevela/pkg/util/maps"
 )
