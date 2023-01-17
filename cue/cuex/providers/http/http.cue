@@ -1,11 +1,11 @@
 package http
 
 #Do: {
-	#do: "do"
+	#do:       "do"
 	#provider: "http"
 
 	// +usage=The method of HTTP request
-	method: *"GET" | "POST" | "PUT" | "DELETE"
+	method: *"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "CONNECT" | "OPTIONS" | "TRACE"
 	// +usage=The url to request
 	url: string
 	// +usage=The request config
@@ -42,3 +42,9 @@ package http
 #Patch: #Do & {method: "PATCH"}
 
 #Delete: #Do & {method: "DELETE"}
+
+#Connect: #Do & {method: "CONNECT"}
+
+#OPTIONS: #Do & {method: "OPTIONS"}
+
+#TRACE: #Do & {method: "TRACE"}

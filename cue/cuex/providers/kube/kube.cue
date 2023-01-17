@@ -13,7 +13,7 @@ package kube
 		// +usage=The kind of the resource
 		kind: string
 		metadata: {
-			name: string
+			name:       string
 			namespace?: string
 			...
 		}
