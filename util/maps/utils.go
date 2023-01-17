@@ -19,7 +19,7 @@ package maps
 // Keys return the arr of keys in the given map
 func Keys[K comparable, V any](m map[K]V) []K {
 	var s []K
-	for k, _ := range m {
+	for k := range m {
 		s = append(s, k)
 	}
 	return s

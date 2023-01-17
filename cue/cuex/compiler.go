@@ -124,8 +124,12 @@ var DefaultCompiler = singleton.NewSingleton[*Compiler](func() *Compiler {
 	return compiler
 })
 
-var EnableExternalPackageForDefaultCompiler = true
-var EnableExternalPackageWatchForDefaultCompiler = false
+var (
+	// EnableExternalPackageForDefaultCompiler .
+	EnableExternalPackageForDefaultCompiler = true
+	// EnableExternalPackageWatchForDefaultCompiler .
+	EnableExternalPackageWatchForDefaultCompiler = false
+)
 
 // AddFlags add flags for configuring cuex default compiler
 func AddFlags(set *pflag.FlagSet) {

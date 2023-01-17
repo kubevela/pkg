@@ -27,18 +27,22 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
 
+// UserAgent .
 var UserAgent = NewSingleton[string](nil)
 
+// KubeConfig .
 var KubeConfig = NewSingleton[*rest.Config](func() *rest.Config {
 	cfg := config.GetConfigOrDie()
 	cfg.UserAgent = UserAgent.Get()
 	return cfg
 })
 
+// RESTMapper .
 var RESTMapper = NewSingletonE[meta.RESTMapper](func() (meta.RESTMapper, error) {
 	return apiutil.NewDiscoveryRESTMapper(KubeConfig.Get())
 })
 
+// KubeClient .
 var KubeClient = NewSingletonE[client.Client](func() (client.Client, error) {
 	return client.New(KubeConfig.Get(), client.Options{
 		Scheme: scheme.Scheme,
@@ -46,10 +50,12 @@ var KubeClient = NewSingletonE[client.Client](func() (client.Client, error) {
 	})
 })
 
+// StaticClient .
 var StaticClient = NewSingletonE[kubernetes.Interface](func() (kubernetes.Interface, error) {
 	return kubernetes.NewForConfig(KubeConfig.Get())
 })
 
+// DynamicClient .
 var DynamicClient = NewSingletonE[dynamic.Interface](func() (dynamic.Interface, error) {
 	return dynamic.NewForConfig(KubeConfig.Get())
 })

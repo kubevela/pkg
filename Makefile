@@ -13,4 +13,7 @@ tidy:
 unit-test:
 	go test -v -coverpkg=./... -coverprofile=/tmp/vela-pkg-coverage.txt ./...
 
+lint:
+	golangci-lint run ./...
+
 reviewable: fmt vet

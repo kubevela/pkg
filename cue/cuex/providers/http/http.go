@@ -39,6 +39,7 @@ type DoParams struct {
 	Trailer http.Header `json:"trailer"`
 }
 
+// DoReturns returned struct for http response
 type DoReturns struct {
 	Response struct {
 		Body       string      `json:"body"`
@@ -48,6 +49,7 @@ type DoReturns struct {
 	} `json:"response"`
 }
 
+// Do execute http request and process returned result
 func Do(ctx context.Context, params *DoParams) (*DoReturns, error) {
 	req, err := http.NewRequestWithContext(ctx, params.Method, params.URL, strings.NewReader(params.Request.Body))
 	if err != nil {
@@ -76,11 +78,13 @@ func Do(ctx context.Context, params *DoParams) (*DoReturns, error) {
 	return ret, nil
 }
 
+// ProviderName .
 const ProviderName = "http"
 
 //go:embed http.cue
 var template string
 
+// Package .
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
 	"do": cuexruntime.GenericProviderFn[DoParams, DoReturns](Do),
 }))

@@ -26,16 +26,19 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 )
 
+// Var .
 type Var struct {
 	Input  string `json:"input"`
 	Output string `json:"output"`
 }
 
+// Encode .
 func Encode(ctx context.Context, v *Var) (*Var, error) {
 	v.Output = base64.StdEncoding.EncodeToString([]byte(v.Input))
 	return v, nil
 }
 
+// Decode .
 func Decode(ctx context.Context, v *Var) (*Var, error) {
 	o, err := base64.StdEncoding.DecodeString(v.Input)
 	if err == nil {
@@ -44,11 +47,13 @@ func Decode(ctx context.Context, v *Var) (*Var, error) {
 	return v, err
 }
 
+// ProviderName .
 const ProviderName = "base64"
 
 //go:embed base64.cue
 var template string
 
+// Package .
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
 	"encode": cuexruntime.GenericProviderFn[Var, Var](Encode),
 	"decode": cuexruntime.GenericProviderFn[Var, Var](Decode),

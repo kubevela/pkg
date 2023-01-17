@@ -47,20 +47,25 @@ type PackageManager struct {
 	StopCh       chan struct{}
 }
 
+// PackageManagerOption option for configuring PackageManager
 type PackageManagerOption interface {
 	ApplyTo(*PackageManager)
 }
 
+// WithResyncPeriod set resync period for external package informer
 type WithResyncPeriod time.Duration
 
+// ApplyTo .
 func (in WithResyncPeriod) ApplyTo(m *PackageManager) {
 	m.ResyncPeriod = time.Duration(in)
 }
 
+// WithInternalPackage add internal package
 type WithInternalPackage struct {
 	Package
 }
 
+// ApplyTo .
 func (in WithInternalPackage) ApplyTo(m *PackageManager) {
 	m.Internals.Set(in.GetPath(), in)
 }

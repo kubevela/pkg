@@ -68,7 +68,7 @@ func (in *SyncMap[K, V]) Keys() []K {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
 	var keys []K
-	for k, _ := range in.m {
+	for k := range in.m {
 		keys = append(keys, k)
 	}
 	return keys

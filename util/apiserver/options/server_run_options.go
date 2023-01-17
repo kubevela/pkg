@@ -31,6 +31,8 @@ type ServerRunOptions struct {
 	MinRequestTimeout int
 }
 
+// NewServerRunOptions create default ServerRunOptions with RequestTimeout and
+// MinRequestTimeout set
 func NewServerRunOptions() *ServerRunOptions {
 	defaults := server.NewConfig(serializer.CodecFactory{})
 	return &ServerRunOptions{

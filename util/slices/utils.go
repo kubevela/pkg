@@ -60,9 +60,7 @@ func Find[T any](arr []T, fn func(T) bool) *T {
 func Flatten[T any](arr [][]T) []T {
 	var _arr []T
 	for _, items := range arr {
-		for _, item := range items {
-			_arr = append(_arr, item)
-		}
+		_arr = append(_arr, items...)
 	}
 	return _arr
 }

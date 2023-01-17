@@ -25,20 +25,26 @@ import (
 )
 
 const (
-	Group   = "cue.oam.dev"
+	// Group .
+	Group = "cue.oam.dev"
+	// Version .
 	Version = "v1alpha1"
 )
 
+// GroupVersion .
 var GroupVersion = schema.GroupVersion{Group: Group, Version: Version}
 
+// PackageResource resource name for Package
 const PackageResource = "packages"
 
+// PackageGroupVersionResource GroupVersionResource for Package
 var PackageGroupVersionResource = GroupVersion.WithResource(PackageResource)
 
 func init() {
 	apiruntime.Must(AddToScheme(scheme.Scheme))
 }
 
+// AddToScheme .
 var AddToScheme = func(scheme *runtime.Scheme) error {
 	metav1.AddToGroupVersion(scheme, GroupVersion)
 	scheme.AddKnownTypes(GroupVersion, &Package{}, &PackageList{})
