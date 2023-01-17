@@ -22,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/runtime"
 )
 
+// Singleton global unique data struct
 type Singleton[T any] struct {
 	mu     sync.Mutex
 	loaded bool
@@ -30,6 +31,7 @@ type Singleton[T any] struct {
 	data   T
 }
 
+// Get retrieve underlying data, if not initialized, will trigger initialization
 func (in *Singleton[T]) Get() T {
 	in.mu.Lock()
 	if !in.loaded && in.loader != nil {
@@ -41,6 +43,7 @@ func (in *Singleton[T]) Get() T {
 	return in.data
 }
 
+// Set write the underlying data
 func (in *Singleton[T]) Set(data T) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
@@ -48,18 +51,21 @@ func (in *Singleton[T]) Set(data T) {
 	in.data = data
 }
 
+// Reload trigger loader
 func (in *Singleton[T]) Reload() {
 	if in.loader != nil {
 		in.Set(in.loader())
 	}
 }
 
+// NewSingleton create a new singleton with loader
 func NewSingleton[T any](loader func() T) *Singleton[T] {
 	return &Singleton[T]{
 		loader: loader,
 	}
 }
 
+// NewSingletonE create a new singleton with error-returned loader
 func NewSingletonE[T any](loaderE func() (T, error)) *Singleton[T] {
 	loader := func() T {
 		t, err := loaderE()

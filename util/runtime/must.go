@@ -18,6 +18,7 @@ package runtime
 
 import "k8s.io/apimachinery/pkg/util/runtime"
 
+// Must panics on non-nil errors.
 func Must[T any](t T, err error) T {
 	runtime.Must(err)
 	return t

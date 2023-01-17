@@ -30,27 +30,32 @@ import (
 	"github.com/kubevela/pkg/util/singleton"
 )
 
+// GetVar .
 type GetVar struct {
 	Cluster string                     `json:"cluster"`
 	Value   *unstructured.Unstructured `json:"value"`
 }
 
+// Get .
 func Get(ctx context.Context, obj *GetVar) (*GetVar, error) {
 	ctx = multicluster.WithCluster(ctx, obj.Cluster)
 	return obj, singleton.KubeClient.Get().Get(ctx, client.ObjectKeyFromObject(obj.Value), obj.Value)
 }
 
+// ListFilter filter for list resources
 type ListFilter struct {
 	Namespace      string            `json:"namespace,omitempty"`
 	MatchingLabels map[string]string `json:"matchingLabels,omitempty"`
 }
 
+// ListVar .
 type ListVar struct {
 	Cluster string                         `json:"cluster"`
 	Filter  *ListFilter                    `json:"filter,omitempty"`
 	List    *unstructured.UnstructuredList `json:"list"`
 }
 
+// List .
 func List(ctx context.Context, objs *ListVar) (*ListVar, error) {
 	ctx = multicluster.WithCluster(ctx, objs.Cluster)
 	var listOpts []client.ListOption
@@ -63,11 +68,13 @@ func List(ctx context.Context, objs *ListVar) (*ListVar, error) {
 	return objs, singleton.KubeClient.Get().List(ctx, objs.List, listOpts...)
 }
 
+// ProviderName .
 const ProviderName = "kube"
 
 //go:embed kube.cue
 var template string
 
+// Package .
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
 	"get":  cuexruntime.GenericProviderFn[GetVar, GetVar](Get),
 	"list": cuexruntime.GenericProviderFn[ListVar, ListVar](List),

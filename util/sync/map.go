@@ -18,15 +18,18 @@ package sync
 
 import "sync"
 
+// Map holds typed data with sync.RWMutex guard for concurrency
 type Map[K comparable, V any] struct {
 	mu   sync.RWMutex
 	data map[K]V
 }
 
+// NewMap create a new thread-safe concurrent map
 func NewMap[K comparable, V any]() *Map[K, V] {
 	return &Map[K, V]{data: map[K]V{}}
 }
 
+// Get return value for given key and the existence flag
 func (in *Map[K, V]) Get(key K) (V, bool) {
 	in.mu.RLock()
 	defer in.mu.RUnlock()
@@ -34,21 +37,24 @@ func (in *Map[K, V]) Get(key K) (V, bool) {
 	return val, found
 }
 
+// Set write value for given key
 func (in *Map[K, V]) Set(key K, val V) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	in.data[key] = val
 }
 
+// Del delete value for given key
 func (in *Map[K, V]) Del(key K) {
 	in.mu.Lock()
 	defer in.mu.Unlock()
 	delete(in.data, key)
 }
 
+// Data return a full copy of underlying
 func (in *Map[K, V]) Data() map[K]V {
 	in.mu.RLock()
-	in.mu.RUnlock()
+	defer in.mu.RUnlock()
 	copied := map[K]V{}
 	for k, v := range in.data {
 		copied[k] = v

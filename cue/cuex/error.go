@@ -24,30 +24,37 @@ import (
 	"github.com/kubevela/pkg/cue/util"
 )
 
+// ProviderNotFoundErr provider not found error
 type ProviderNotFoundErr string
 
+// Error .
 func (e ProviderNotFoundErr) Error() string {
 	return fmt.Sprintf("provider %s not found", string(e))
 }
 
+// ProviderFnNotFoundErr provider function not found error
 type ProviderFnNotFoundErr struct {
 	Provider, Fn string
 }
 
+// Error .
 func (e ProviderFnNotFoundErr) Error() string {
 	return fmt.Sprintf("function %s not found in provider %s", e.Fn, e.Provider)
 }
 
+// FunctionCallError error for executing provider function
 type FunctionCallError struct {
 	Path  string
 	Value string
 	Err   error
 }
 
+// Error .
 func (e FunctionCallError) Error() string {
 	return fmt.Sprintf("function call error for %s: %s (value: %s)", e.Path, e.Err.Error(), e.Value)
 }
 
+// NewFunctionCallError create a new error for executing resolved function call
 func NewFunctionCallError(v cue.Value, err error) FunctionCallError {
 	path := v.Path().String()
 	s, e := util.ToString(v)
@@ -57,8 +64,10 @@ func NewFunctionCallError(v cue.Value, err error) FunctionCallError {
 	return FunctionCallError{Path: path, Value: s, Err: err}
 }
 
+// ResolveTimeoutErr error when Resolve process timeout
 type ResolveTimeoutErr struct{}
 
+// Error .
 func (e ResolveTimeoutErr) Error() string {
-	return fmt.Sprintf("cuex compile resolve timeout")
+	return "cuex compile resolve timeout"
 }

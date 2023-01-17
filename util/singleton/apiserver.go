@@ -21,15 +21,19 @@ import (
 	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 )
 
+// GenericAPIServer .
 var GenericAPIServer = NewSingleton[*builder.GenericAPIServer](nil)
 
+// InitGenericAPIServer load the global unique GenericAPIServer
 func InitGenericAPIServer(server *builder.GenericAPIServer) *builder.GenericAPIServer {
 	GenericAPIServer.Set(server)
 	return server
 }
 
+// APIServerConfig the global server.Config for APIServer to use
 var APIServerConfig = NewSingleton[*server.Config](nil)
 
+// InitServerConfig initialize APIServerConfig
 func InitServerConfig(config *server.RecommendedConfig) *server.RecommendedConfig {
 	serverConfig := &server.Config{}
 	*serverConfig = config.Config

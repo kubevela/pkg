@@ -37,14 +37,15 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          submodules: true
+        uses: actions/checkout@v3
 
       - name: Setup Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v3
 
       - name: Cache Go Dependencies
         uses: actions/cache@v2

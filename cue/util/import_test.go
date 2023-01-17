@@ -34,6 +34,6 @@ func TestImport(t *testing.T) {
 	require.Equal(t, "test", bi.PkgName)
 
 	// Test invalid CUE
-	bi, err = util.BuildImport("vela/test-bad", map[string]string{"-": `bad-val!@#`})
+	_, err = util.BuildImport("vela/test-bad", map[string]string{"-": `bad-val!@#`})
 	require.Error(t, err)
 }

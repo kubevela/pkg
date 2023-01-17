@@ -29,6 +29,7 @@ import (
 	"github.com/kubevela/pkg/util/rand"
 )
 
+// TestClientFunctions a list of functions to test wrapped client
 func TestClientFunctions(c client.Client) {
 	ctx := context.Background()
 	namespace, name := "test-"+rand.RandomString(4), "fake"

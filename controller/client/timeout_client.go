@@ -30,6 +30,7 @@ type TimeoutOptions struct {
 	MutatingRequestTimeout    time.Duration
 }
 
+// WithTimeout return timeout context if RequestTimeout is greater than 0
 func (in *TimeoutOptions) WithTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if in.RequestTimeout > 0 {
 		return context.WithTimeout(ctx, in.RequestTimeout)
@@ -37,6 +38,7 @@ func (in *TimeoutOptions) WithTimeout(ctx context.Context) (context.Context, con
 	return ctx, func() {}
 }
 
+// WithLongRunningTimeout return timout context if LongRunningRequestTimeout is greater than 0
 func (in *TimeoutOptions) WithLongRunningTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if in.LongRunningRequestTimeout > 0 {
 		return context.WithTimeout(ctx, in.LongRunningRequestTimeout)
@@ -44,6 +46,7 @@ func (in *TimeoutOptions) WithLongRunningTimeout(ctx context.Context) (context.C
 	return in.WithTimeout(ctx)
 }
 
+// WithMutatingTimeout return timout context if WithMutatingTimeout is greater than 0
 func (in *TimeoutOptions) WithMutatingTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
 	if in.MutatingRequestTimeout > 0 {
 		return context.WithTimeout(ctx, in.MutatingRequestTimeout)
@@ -57,48 +60,56 @@ type TimeoutClient struct {
 	TimeoutOptions
 }
 
+// Get .
 func (in *TimeoutClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
 	ctx, cancel := in.WithTimeout(ctx)
 	defer cancel()
 	return in.Client.Get(ctx, key, obj)
 }
 
+// List .
 func (in *TimeoutClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	ctx, cancel := in.WithLongRunningTimeout(ctx)
 	defer cancel()
 	return in.Client.List(ctx, list, opts...)
 }
 
+// Create .
 func (in *TimeoutClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.Client.Create(ctx, obj, opts...)
 }
 
+// Delete .
 func (in *TimeoutClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.Client.Delete(ctx, obj, opts...)
 }
 
+// Update .
 func (in *TimeoutClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.Client.Update(ctx, obj, opts...)
 }
 
+// Patch .
 func (in *TimeoutClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.Client.Patch(ctx, obj, patch, opts...)
 }
 
+// DeleteAllOf .
 func (in *TimeoutClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.Client.DeleteAllOf(ctx, obj, opts...)
 }
 
+// Status .
 func (in *TimeoutClient) Status() client.StatusWriter {
 	return &TimeoutStatusWriter{
 		StatusWriter:   in.Client.Status(),
@@ -112,12 +123,14 @@ type TimeoutStatusWriter struct {
 	TimeoutOptions
 }
 
+// Update .
 func (in *TimeoutStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.StatusWriter.Update(ctx, obj, opts...)
 }
 
+// Patch .
 func (in *TimeoutStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
