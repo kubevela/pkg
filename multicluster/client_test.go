@@ -26,14 +26,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/multicluster"
-	"github.com/kubevela/pkg/test/kubebuilder"
+	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/test/tester"
 )
 
 var _ = Describe("Test multicluster client", func() {
-	cfg := kubebuilder.GetConfig()
 
 	It("Test create client", func() {
+		cfg := singleton.KubeConfig.Get()
+
 		By("New native client")
 		_, err := multicluster.NewClient(cfg, multicluster.ClientOptions{})
 		Ω(err).To(Succeed())
