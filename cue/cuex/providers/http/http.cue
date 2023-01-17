@@ -36,3 +36,9 @@ package http
 #Get: #Do & {method: "GET"}
 
 #Post: #Do & {method: "POST"}
+
+#Put: #Do & {method: "PUT"}
+
+#Patch: #Do & {method: "PATCH"}
+
+#Delete: #Do & {method: "DELETE"}
