@@ -41,7 +41,7 @@ func Iterate(value cue.Value, fn func(v cue.Value) (stop bool)) (stop bool) {
 		_it, _ := value.List()
 		it = &_it
 	default:
-		it, _ = value.Fields(cue.Optional(true), cue.Hidden(true), cue.Definitions(true))
+		it, _ = value.Fields(cue.Optional(true), cue.Hidden(true))
 	}
 	values := slices.IterToArray[cue.Iterator, cue.Value](it)
 	sort.Slice(values, func(i, j int) bool {
