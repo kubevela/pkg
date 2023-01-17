@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,24 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package log
+package sharding
 
-import (
-	"flag"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"k8s.io/klog/v2"
-)
-
-// AddLogFlags add log flags to command
-func AddLogFlags(cmd *cobra.Command) {
-	AddFlags(cmd.Flags())
-}
-
-// AddFlags add klog flags to FlagSet
-func AddFlags(fs *pflag.FlagSet) {
-	fss := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(fss)
-	fs.AddGoFlagSet(fss)
-}
+// LabelKubeVelaShardID label key for identify the shard id
+const LabelKubeVelaShardID = "core.oam.dev/shard-id"

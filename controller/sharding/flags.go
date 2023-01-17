@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,24 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package log
+package sharding
 
-import (
-	"flag"
+import "github.com/spf13/pflag"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"k8s.io/klog/v2"
-)
+// ShardID the id for sharding
+var ShardID string
 
-// AddLogFlags add log flags to command
-func AddLogFlags(cmd *cobra.Command) {
-	AddFlags(cmd.Flags())
-}
+// EnableSharding whether enable sharding
+var EnableSharding bool
 
-// AddFlags add klog flags to FlagSet
+// AddFlags add sharding flags
 func AddFlags(fs *pflag.FlagSet) {
-	fss := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(fss)
-	fs.AddGoFlagSet(fss)
+	fs.BoolVar(&EnableSharding, "enable-sharding", EnableSharding, "Whether to enable sharding.")
+	fs.StringVar(&ShardID, "shard-id", ShardID, "The id for sharding. If empty, no sharding.")
 }
