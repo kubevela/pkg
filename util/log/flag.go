@@ -20,12 +20,18 @@ import (
 	"flag"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
 )
 
 // AddLogFlags add log flags to command
 func AddLogFlags(cmd *cobra.Command) {
-	fs := flag.NewFlagSet("", 0)
-	klog.InitFlags(fs)
-	cmd.Flags().AddGoFlagSet(fs)
+	AddFlags(cmd.Flags())
+}
+
+// AddFlags add klog flags to FlagSet
+func AddFlags(fs *pflag.FlagSet) {
+	fss := flag.NewFlagSet("klog", flag.ExitOnError)
+	klog.InitFlags(fss)
+	fs.AddGoFlagSet(fss)
 }
