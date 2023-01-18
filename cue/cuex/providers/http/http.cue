@@ -4,22 +4,25 @@ package http
 	#do:       "do"
 	#provider: "http"
 
-	// +usage=The method of HTTP request
-	method: *"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "CONNECT" | "OPTIONS" | "TRACE"
-	// +usage=The url to request
-	url: string
-	// +usage=The request config
-	request?: {
-		// +usage=The request body
-		body?: string
-		// +usage=The header of the request
-		header?: [string]: string
-		// +usage=The trailer of the request
-		trailer?: [string]: string
-		...
+	// +usage=The params of this action
+	$params: {
+		// +usage=The method of HTTP request
+		method: *"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "CONNECT" | "OPTIONS" | "TRACE"
+		// +usage=The url to request
+		url: string
+		// +usage=The request config
+		request?: {
+			// +usage=The request body
+			body?: string
+			// +usage=The header of the request
+			header?: [string]: string
+			// +usage=The trailer of the request
+			trailer?: [string]: string
+			...
+		}
 	}
 	// +usage=The response of the request will be filled in this field after the action is executed
-	response?: {
+	$returns: {
 		// +usage=The body of the response
 		body?: string
 		// +usage=The header of the response
@@ -33,18 +36,18 @@ package http
 	...
 }
 
-#Get: #Do & {method: "GET"}
+#Get: #Do & {$params: method: "GET"}
 
-#Post: #Do & {method: "POST"}
+#Post: #Do & {$params: method: "POST"}
 
-#Put: #Do & {method: "PUT"}
+#Put: #Do & {$params: method: "PUT"}
 
-#Patch: #Do & {method: "PATCH"}
+#Patch: #Do & {$params: method: "PATCH"}
 
-#Delete: #Do & {method: "DELETE"}
+#Delete: #Do & {$params: method: "DELETE"}
 
-#Connect: #Do & {method: "CONNECT"}
+#Connect: #Do & {$params: method: "CONNECT"}
 
-#OPTIONS: #Do & {method: "OPTIONS"}
+#OPTIONS: #Do & {$params: method: "OPTIONS"}
 
-#TRACE: #Do & {method: "TRACE"}
+#TRACE: #Do & {$params: method: "TRACE"}

@@ -14,26 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package base64_test
+package providers
 
-import (
-	"context"
-	"testing"
+// Params is the input parameters of a provider.
+type Params[T any] struct {
+	Params T `json:"$params"`
+}
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/kubevela/pkg/cue/cuex/providers/base64"
-)
-
-func TestBase64(t *testing.T) {
-	ctx := context.Background()
-	v := &base64.Params{"example"}
-	_v, err := base64.Encode(ctx, v)
-	require.NoError(t, err)
-	require.Equal(t, "ZXhhbXBsZQ==", _v.Returns)
-
-	v = &base64.Params{"ZXhhbXBsZQ=="}
-	_v, err = base64.Decode(ctx, v)
-	require.NoError(t, err)
-	require.Equal(t, "example", _v.Returns)
+// Returns is the output of a provider.
+type Returns[T any] struct {
+	Returns T `json:"$returns"`
 }

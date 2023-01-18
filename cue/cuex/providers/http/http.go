@@ -23,13 +23,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 )
 
-// DoParams params for do http request
+// RequestVars is the vars for http request
 // TODO: support timeout & tls
-type DoParams struct {
+type RequestVars struct {
 	Method  string `json:"method"`
 	URL     string `json:"url"`
 	Request struct {
@@ -39,18 +40,23 @@ type DoParams struct {
 	Trailer http.Header `json:"trailer"`
 }
 
-// DoReturns returned struct for http response
-type DoReturns struct {
-	Response struct {
-		Body       string      `json:"body"`
-		Header     http.Header `json:"header"`
-		Trailer    http.Header `json:"trailer"`
-		StatusCode int         `json:"statusCode"`
-	} `json:"response"`
+// ResponseVars is the vars for http response
+type ResponseVars struct {
+	Body       string      `json:"body"`
+	Header     http.Header `json:"header"`
+	Trailer    http.Header `json:"trailer"`
+	StatusCode int         `json:"statusCode"`
 }
 
+// DoParams is the params for http request
+type DoParams providers.Params[RequestVars]
+
+// DoReturns returned struct for http response
+type DoReturns providers.Returns[ResponseVars]
+
 // Do execute http request and process returned result
-func Do(ctx context.Context, params *DoParams) (*DoReturns, error) {
+func Do(ctx context.Context, doParams *DoParams) (*DoReturns, error) {
+	params := doParams.Params
 	req, err := http.NewRequestWithContext(ctx, params.Method, params.URL, strings.NewReader(params.Request.Body))
 	if err != nil {
 		return nil, err
@@ -70,12 +76,14 @@ func Do(ctx context.Context, params *DoParams) (*DoReturns, error) {
 		return nil, err
 	}
 	// parse response body and headers
-	ret := &DoReturns{}
-	ret.Response.Body = string(b)
-	ret.Response.Header = resp.Header
-	ret.Response.Trailer = resp.Trailer
-	ret.Response.StatusCode = resp.StatusCode
-	return ret, nil
+	return &DoReturns{
+		Returns: ResponseVars{
+			Body:       string(b),
+			Header:     resp.Header,
+			Trailer:    resp.Trailer,
+			StatusCode: resp.StatusCode,
+		},
+	}, nil
 }
 
 // ProviderName .

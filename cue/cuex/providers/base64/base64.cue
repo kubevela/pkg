@@ -3,13 +3,13 @@ package base64
 #Encode: {
 	#do:       "encode"
 	#provider: "base64"
-	input:     string
-	output?:   string
+	$params:   string
+	$returns?: string
 }
 
 #Decode: {
 	#do:       "decode"
 	#provider: "base64"
-	input:     string
-	output?:   string
+	$params:   string
+	$returns?: string
 }

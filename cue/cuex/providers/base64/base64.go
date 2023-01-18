@@ -22,29 +22,33 @@ import (
 
 	_ "embed"
 
+	"github.com/kubevela/pkg/cue/cuex/providers"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/util/runtime"
 )
 
-// Var .
-type Var struct {
-	Input  string `json:"input"`
-	Output string `json:"output"`
-}
+// Params .
+type Params providers.Params[string]
+
+// Returns .
+type Returns providers.Returns[string]
 
 // Encode .
-func Encode(ctx context.Context, v *Var) (*Var, error) {
-	v.Output = base64.StdEncoding.EncodeToString([]byte(v.Input))
-	return v, nil
+func Encode(ctx context.Context, params *Params) (*Returns, error) {
+	return &Returns{
+		Returns: base64.StdEncoding.EncodeToString([]byte(params.Params)),
+	}, nil
 }
 
 // Decode .
-func Decode(ctx context.Context, v *Var) (*Var, error) {
-	o, err := base64.StdEncoding.DecodeString(v.Input)
-	if err == nil {
-		v.Output = string(o)
+func Decode(ctx context.Context, params *Params) (*Returns, error) {
+	o, err := base64.StdEncoding.DecodeString(params.Params)
+	if err != nil {
+		return nil, err
 	}
-	return v, err
+	return &Returns{
+		Returns: string(o),
+	}, nil
 }
 
 // ProviderName .
@@ -55,6 +59,6 @@ var template string
 
 // Package .
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"encode": cuexruntime.GenericProviderFn[Var, Var](Encode),
-	"decode": cuexruntime.GenericProviderFn[Var, Var](Decode),
+	"encode": cuexruntime.GenericProviderFn[Params, Returns](Encode),
+	"decode": cuexruntime.GenericProviderFn[Params, Returns](Decode),
 }))

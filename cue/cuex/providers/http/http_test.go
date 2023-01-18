@@ -27,13 +27,17 @@ import (
 
 func TestDo(t *testing.T) {
 	ret, err := http.Do(context.Background(), &http.DoParams{
-		Method: "GET", URL: "https://api64.ipify.org/",
+		Params: http.RequestVars{
+			Method: "GET", URL: "https://api64.ipify.org/",
+		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 200, ret.Response.StatusCode)
+	require.Equal(t, 200, ret.Returns.StatusCode)
 
 	_, err = http.Do(context.Background(), &http.DoParams{
-		Method: "GET", URL: "https://localhost:9999/",
+		Params: http.RequestVars{
+			Method: "GET", URL: "https://localhost:9999/",
+		},
 	})
 	require.Error(t, err)
 }

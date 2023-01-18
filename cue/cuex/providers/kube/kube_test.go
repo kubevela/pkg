@@ -50,29 +50,105 @@ func TestKube(t *testing.T) {
 	).Build()
 	singleton.KubeClient.Set(cli)
 	ctx := context.Background()
-	v, err := kube.Get(ctx, &kube.GetVar{Value: &unstructured.Unstructured{Object: map[string]interface{}{
-		"apiVersion": "v1",
-		"kind":       "ConfigMap",
-		"metadata": map[string]interface{}{
-			"name":      "a",
-			"namespace": "x",
-		},
-	}}})
+	v, err := kube.Get(ctx, &kube.GetParams{
+		Params: kube.GetVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      "a",
+					"namespace": "x",
+				},
+			}},
+		}})
 	require.NoError(t, err)
-	require.Equal(t, map[string]string{"label": "1"}, v.Value.GetLabels())
+	require.Equal(t, map[string]string{"label": "1"}, v.Returns.GetLabels())
+	v, err = kube.Get(ctx, &kube.GetParams{
+		Params: kube.GetVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v2",
+			}},
+		}})
+	require.Error(t, err)
 
-	vs, err := kube.List(ctx, &kube.ListVar{
-		Filter: &kube.ListFilter{
-			Namespace:      "x",
-			MatchingLabels: map[string]string{"label": "1"},
-		},
-		List: &unstructured.UnstructuredList{Object: map[string]interface{}{
-			"apiVersion": "v1",
-			"kind":       "ConfigMap",
-		}},
-	})
+	vs, err := kube.List(ctx, &kube.ListParams{
+		Params: kube.ListVars{
+			Filter: &kube.ListFilter{
+				Namespace:      "x",
+				MatchingLabels: map[string]string{"label": "1"},
+			},
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+			}},
+		}})
 	require.NoError(t, err)
-	require.Equal(t, 2, len(vs.List.Items))
-	require.True(t, slices.Index(vs.List.Items, func(i unstructured.Unstructured) bool { return i.GetName() == "a" }) >= 0)
-	require.True(t, slices.Index(vs.List.Items, func(i unstructured.Unstructured) bool { return i.GetName() == "c" }) >= 0)
+	require.Equal(t, 2, len(vs.Returns.Items))
+	require.True(t, slices.Index(vs.Returns.Items, func(i unstructured.Unstructured) bool { return i.GetName() == "a" }) >= 0)
+	require.True(t, slices.Index(vs.Returns.Items, func(i unstructured.Unstructured) bool { return i.GetName() == "c" }) >= 0)
+	vs, err = kube.List(ctx, &kube.ListParams{
+		Params: kube.ListVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"test": "v2",
+			}},
+		}})
+	require.Error(t, err)
+
+	patchParams := &kube.PatchParams{
+		Params: kube.PatchVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      "a",
+					"namespace": "x",
+				},
+			}},
+			Patch: kube.Patcher{
+				Data: map[string]interface{}{
+					"metadata": map[string]interface{}{
+						"labels": map[string]string{
+							"label": "2",
+						},
+					},
+					"data": map[string]string{
+						"key": "value",
+					},
+				},
+			},
+		},
+	}
+	// test patch with strategic merge patch
+	patchResult, err := kube.Patch(ctx, patchParams)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"label": "2"}, patchResult.Returns.GetLabels())
+	require.Equal(t, map[string]interface{}{"key": "value"}, patchResult.Returns.Object["data"])
+
+	// test patch with merge patch
+	patchParams.Params.Patch.Type = "merge"
+	patchParams.Params.Patch.Data.(map[string]interface{})["metadata"].(map[string]interface{})["labels"] = map[string]string{
+		"label": "3",
+	}
+	patchResult, err = kube.Patch(ctx, patchParams)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"label": "3"}, patchResult.Returns.GetLabels())
+
+	// test patch with json
+	patchParams.Params.Patch.Type = "json"
+	patchParams.Params.Patch.Data = []map[string]interface{}{{
+		"op":    "replace",
+		"path":  "/metadata/labels/label",
+		"value": "4",
+	}}
+	patchResult, err = kube.Patch(ctx, patchParams)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"label": "4"}, patchResult.Returns.GetLabels())
+
+	// error cases
+	patchParams.Params.Patch.Data = "."
+	patchResult, err = kube.Patch(ctx, patchParams)
+	require.Error(t, err)
+	patchParams.Params.Resource.Object["apiVersion"] = "v2"
+	patchResult, err = kube.Patch(ctx, patchParams)
+	require.Error(t, err)
 }
