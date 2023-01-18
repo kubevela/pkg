@@ -65,9 +65,11 @@ jobs:
         run: make unit-test
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: /tmp/vela-pkg-coverage.txt
           flags: unit-test
           name: codecov-umbrella
+          fail_ci_if_error: true
+          verbose: true
