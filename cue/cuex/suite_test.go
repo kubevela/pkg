@@ -112,20 +112,22 @@ var _ = Describe("Test Cuex Compiler", func() {
 		)
 
 		secret: kube.#Get & {
-			value: {
-				apiVersion: "v1"
-				kind: "Secret"
-				metadata: name: "test"
-				metadata: namespace: "default"
+			$params: {
+				resource: {
+					apiVersion: "v1"
+					kind: "Secret"
+					metadata: name: "test"
+					metadata: namespace: "default"
+				}
 			}
 		}
 
 		decode: base64.#Decode & {
-			input: secret.value.data["key"]
+			$params: secret.$returns.data["key"]
 		}
 
 		toUpper: sutil.#ToUpper & {
-			input: decode.output
+			input: decode.$returns
 		}
 		
 		output: toUpper.output
