@@ -66,7 +66,7 @@ func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, er
 	executed := map[string]bool{}
 	providers := in.PackageManager.GetProviders()
 	for {
-		if ddl, ok := ctx.Deadline(); ok && ddl.After(time.Now()) {
+		if ddl, ok := ctx.Deadline(); ok && ddl.Before(time.Now()) {
 			return newValue, ResolveTimeoutErr{}
 		}
 		var next *cue.Value
