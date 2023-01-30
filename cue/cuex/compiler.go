@@ -33,6 +33,7 @@ import (
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/cue/util"
 	"github.com/kubevela/pkg/util/singleton"
+	"github.com/kubevela/pkg/util/slices"
 )
 
 const (
@@ -106,13 +107,7 @@ func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, er
 
 // DefaultCompiler compiler for cuex to compile
 var DefaultCompiler = singleton.NewSingleton[*Compiler](func() *Compiler {
-	compiler := &Compiler{
-		PackageManager: cuexruntime.NewPackageManager(
-			cuexruntime.WithInternalPackage{Package: base64.Package},
-			cuexruntime.WithInternalPackage{Package: http.Package},
-			cuexruntime.WithInternalPackage{Package: kube.Package},
-		),
-	}
+	compiler := NewCompilerWithDefaultInternalPackages()
 	if EnableExternalPackageForDefaultCompiler {
 		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
 			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
@@ -123,6 +118,26 @@ var DefaultCompiler = singleton.NewSingleton[*Compiler](func() *Compiler {
 	}
 	return compiler
 })
+
+// NewCompilerWithInternalPackages create compiler with internal packages
+func NewCompilerWithInternalPackages(packages ...cuexruntime.Package) *Compiler {
+	return &Compiler{
+		PackageManager: cuexruntime.NewPackageManager(
+			slices.Map(packages, func(p cuexruntime.Package) cuexruntime.PackageManagerOption {
+				return cuexruntime.WithInternalPackage{Package: p}
+			})...,
+		),
+	}
+}
+
+// NewCompilerWithDefaultInternalPackages create compiler with default internal packages
+func NewCompilerWithDefaultInternalPackages() *Compiler {
+	return NewCompilerWithInternalPackages(
+		base64.Package,
+		http.Package,
+		kube.Package,
+	)
+}
 
 var (
 	// EnableExternalPackageForDefaultCompiler .
