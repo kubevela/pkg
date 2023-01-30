@@ -119,6 +119,7 @@ func TestKube(t *testing.T) {
 		},
 	}
 	// test patch with strategic merge patch
+	patchParams.Params.Patch.Type = "strategic"
 	patchResult, err := kube.Patch(ctx, patchParams)
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{"label": "2"}, patchResult.Returns.GetLabels())

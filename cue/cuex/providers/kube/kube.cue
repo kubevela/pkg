@@ -48,7 +48,7 @@ package kube
 		// +usage=The filter to list the resources
 		filter?: {
 			// +usage=The namespace to list the resources
-			namespace?: *"" | string
+			namespace: *"" | string
 			// +usage=The label selector to filter the resources
 			matchingLabels?: {...}
 		}
@@ -85,7 +85,7 @@ package kube
 		// +usage=The patch to be applied to the resource with kubernetes patch
 		patch: *{
 			// +usage=The type of patch being provided
-			type: "strategic"
+			type: "merge"
 			data: {...}
 		} | {
 			// +usage=The type of patch being provided
@@ -93,7 +93,7 @@ package kube
 			data: [{...}]
 		} | {
 			// +usage=The type of patch being provided
-			type: "merge"
+			type: "strategic"
 			data: {...}
 		}
 	}

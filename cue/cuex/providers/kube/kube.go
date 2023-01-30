@@ -127,12 +127,12 @@ func Patch(ctx context.Context, patchParams *PatchParams) (*PatchReturns, error)
 	}
 	var patchType types.PatchType
 	switch params.Patch.Type {
-	case "merge":
-		patchType = types.MergePatchType
+	case "strategic":
+		patchType = types.StrategicMergePatchType
 	case "json":
 		patchType = types.JSONPatchType
 	default:
-		patchType = types.StrategicMergePatchType
+		patchType = types.MergePatchType
 	}
 	if err := singleton.KubeClient.Get().Patch(ctx, params.Resource, client.RawPatch(patchType, patchData)); err != nil {
 		return nil, err
