@@ -4,6 +4,7 @@ go 1.19
 
 require (
 	cuelang.org/go v0.5.0-beta.2
+	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/go-stack/stack v1.8.1
 	github.com/google/go-cmp v0.5.9
 	github.com/klauspost/compress v1.15.12
@@ -38,7 +39,6 @@ require (
 	github.com/coreos/go-semver v0.3.0 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/emicklei/go-restful/v3 v3.8.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/felixge/httpsnoop v1.0.1 // indirect
