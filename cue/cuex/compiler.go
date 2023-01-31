@@ -48,9 +48,68 @@ type Compiler struct {
 
 // CompileString compile given cue string into cue.Value
 func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, error) {
+	return in.CompileStringWithOptions(ctx, src)
+}
+
+// CompileConfig config for running compile process
+type CompileConfig struct {
+	ResolveProviderFunctions bool
+	PreResolveMutators       []cuexruntime.NativeProviderFn
+}
+
+// NewCompileConfig create new CompileConfig
+func NewCompileConfig(opts ...CompileOption) *CompileConfig {
+	cfg := &CompileConfig{
+		ResolveProviderFunctions: true,
+		PreResolveMutators:       nil,
+	}
+	for _, opt := range opts {
+		opt.ApplyTo(cfg)
+	}
+	return cfg
+}
+
+// CompileOption options for compile cue string
+type CompileOption interface {
+	ApplyTo(*CompileConfig)
+}
+
+// WithExtraData fill the cue.Value before resolve
+func WithExtraData(path string, data interface{}) CompileOption {
+	return &withExtraData{
+		path: path,
+		data: data,
+	}
+}
+
+type withExtraData struct {
+	path string
+	data interface{}
+}
+
+// ApplyTo .
+func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
+	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, value cue.Value) (cue.Value, error) {
+		return value.FillPath(cue.ParsePath(in.path), in.data), nil
+	})
+}
+
+var _ CompileOption = DisableResolveProviderFunctions{}
+
+// DisableResolveProviderFunctions disable ResolveProviderFunctions
+type DisableResolveProviderFunctions struct{}
+
+// ApplyTo .
+func (in DisableResolveProviderFunctions) ApplyTo(cfg *CompileConfig) {
+	cfg.ResolveProviderFunctions = false
+}
+
+// CompileStringWithOptions compile given cue string with extra options
+func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, opts ...CompileOption) (cue.Value, error) {
+	cfg := NewCompileConfig(opts...)
 	bi := build.NewContext().NewInstance("", nil)
 	bi.Imports = in.PackageManager.GetImports()
-	f, err := parser.ParseFile("-", src)
+	f, err := parser.ParseFile("-", src, parser.ParseComments)
 	if err != nil {
 		return cue.Value{}, err
 	}
@@ -58,7 +117,15 @@ func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, e
 		return cue.Value{}, err
 	}
 	val := cuecontext.New().BuildInstance(bi)
-	return in.Resolve(ctx, val)
+	for _, mutator := range cfg.PreResolveMutators {
+		if val, err = mutator(ctx, val); err != nil {
+			return cue.Value{}, err
+		}
+	}
+	if cfg.ResolveProviderFunctions {
+		return in.Resolve(ctx, val)
+	}
+	return val, nil
 }
 
 // Resolve runs the resolve process by calling provider functions

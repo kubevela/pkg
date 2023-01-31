@@ -26,10 +26,12 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubevela/pkg/apis/cue/v1alpha1"
+	"github.com/kubevela/pkg/cue/cuex/providers"
 	"github.com/kubevela/pkg/cue/cuex/runtime"
 )
 
@@ -152,4 +154,21 @@ func TestExternalProviderFn(t *testing.T) {
 	}
 	_, err = prd.Call(context.Background(), v)
 	require.Error(t, err)
+}
+
+func TestNativeProviderFn(t *testing.T) {
+	fn := func(_ context.Context, in cue.Value) (cue.Value, error) {
+		params := in.LookupPath(cue.ParsePath(providers.ParamsKey))
+		return in.FillPath(cue.ParsePath(providers.ReturnsKey), params), nil
+	}
+
+	ctx := context.Background()
+	val := cuecontext.New().CompileString(`{
+		$params: "s"
+		$returns?: string
+	}`)
+	ret, _ := runtime.NativeProviderFn(fn).Call(ctx, val)
+	s, err := ret.LookupPath(cue.ParsePath(providers.ReturnsKey)).String()
+	require.NoError(t, err)
+	require.Equal(t, "s", s)
 }

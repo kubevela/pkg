@@ -3,7 +3,7 @@ module github.com/kubevela/pkg
 go 1.19
 
 require (
-	cuelang.org/go v0.5.0-beta.2
+	cuelang.org/go v0.5.0-beta.2.0.20230130095913-d573e0c2f041
 	github.com/emicklei/go-restful/v3 v3.8.0
 	github.com/go-stack/stack v1.8.1
 	github.com/google/go-cmp v0.5.9
