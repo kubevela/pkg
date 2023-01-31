@@ -122,7 +122,7 @@ func TestHandleRequest(t *testing.T) {
 			Path:       "x.y",
 			Format:     "application/cue",
 			StatusCode: http.StatusOK,
-			Output:     []byte("{\n\tz: 5\n}"),
+			Output:     []byte("z: 5"),
 		},
 	}
 	cueServer := cueserver.NewCompileServer(func(ctx context.Context, s string) (cue.Value, error) {

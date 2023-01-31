@@ -91,3 +91,13 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 	}
 	return value.FillPath(cue.ParsePath(""), ret), nil
 }
+
+var _ ProviderFn = NativeProviderFn(nil)
+
+// NativeProviderFn native function that implements ProviderFn interface
+type NativeProviderFn func(context.Context, cue.Value) (cue.Value, error)
+
+// Call .
+func (fn NativeProviderFn) Call(ctx context.Context, value cue.Value) (cue.Value, error) {
+	return fn(ctx, value)
+}

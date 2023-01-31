@@ -4,6 +4,8 @@ cloud.google.com/go/compute v0.1.0/go.mod h1:GAesmwr110a34z04OlxYkATPBEfVhkymfTB
 cloud.google.com/go/compute v1.6.1 h1:2sMmt8prCn7DPaG4Pmh0N3Inmc8cT8ae5k1M6VJ9Wqc=
 cuelang.org/go v0.5.0-beta.2 h1:am5M7jGvNTJ0rnjrFNyvE7fucL/wRqb0emK4XxdThQI=
 cuelang.org/go v0.5.0-beta.2/go.mod h1:okjJBHFQFer+a41sAe2SaGm1glWS8oEb6CmJvn5Zdws=
+cuelang.org/go v0.5.0-beta.2.0.20230130095913-d573e0c2f041 h1:00Lo6MPqzIiVHi37+p8o+GwzpB9t83YsUGlkXQ+bC7Q=
+cuelang.org/go v0.5.0-beta.2.0.20230130095913-d573e0c2f041/go.mod h1:okjJBHFQFer+a41sAe2SaGm1glWS8oEb6CmJvn5Zdws=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=

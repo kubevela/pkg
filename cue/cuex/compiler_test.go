@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
@@ -34,6 +35,27 @@ import (
 func TestAddFlags(t *testing.T) {
 	set := pflag.NewFlagSet("-", 0)
 	cuex.AddFlags(set)
+}
+
+func TestCompile(t *testing.T) {
+	compiler := cuex.NewCompilerWithDefaultInternalPackages()
+	ctx := context.Background()
+	str := `
+		import "vela/base64"
+		parameter: input: string
+		_enc: base64.#Encode & { $params: parameter.input }
+		output: _enc.$returns
+	`
+	val, err := compiler.CompileStringWithOptions(ctx, str, cuex.WithExtraData("parameter.input", "example"))
+	require.NoError(t, err)
+	s, err := val.LookupPath(cue.ParsePath("output")).String()
+	require.NoError(t, err)
+	require.Equal(t, "ZXhhbXBsZQ==", s)
+
+	val, err = compiler.CompileStringWithOptions(ctx, str, cuex.DisableResolveProviderFunctions{})
+	require.NoError(t, err)
+	_, err = val.LookupPath(cue.ParsePath("output")).String()
+	require.Error(t, err)
 }
 
 func TestResolve(t *testing.T) {

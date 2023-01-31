@@ -23,21 +23,46 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kubevela/pkg/cue/util"
+	"github.com/kubevela/pkg/util/stringtools"
 )
 
 func TestToString(t *testing.T) {
 	ctx := cuecontext.New()
-	v := ctx.CompileString(`// +usage=x
-x: y
-y: 5
-_z: 1`)
+	v := ctx.CompileString(`
+		// +usage=x
+		x: y
+		y: 5
+		_z: 1`)
 	s, err := util.ToString(v)
 	require.NoError(t, err)
-	x := `{
-	// +usage=x
-	x:  5
-	y:  5
-	_z: 1
-}`
-	require.Equal(t, x, s)
+	require.Equal(t, stringtools.TrimLeadingIndent(`
+		// +usage=x
+		x:  5
+		y:  5
+		_z: 1
+	`), s)
+}
+
+func TestToRawString(t *testing.T) {
+	ctx := cuecontext.New()
+	s := `
+		import "strconv"
+
+		// +usage=x
+		param: {
+			// test comment
+			key:  *"key" | string
+			val:  int & >=0
+			loop: *[1, 2, 3] | [...int]
+			if val > 1 {
+				loop: [2, 4, 6]
+			}
+			r: [ for i in loop {
+				strconv.FormatInt(i)
+			}]
+		}`
+	v := ctx.CompileString(s)
+	out, err := util.ToRawString(v)
+	require.NoError(t, err)
+	require.Equal(t, stringtools.TrimLeadingIndent(s), out)
 }

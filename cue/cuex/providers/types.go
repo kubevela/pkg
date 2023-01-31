@@ -16,6 +16,13 @@ limitations under the License.
 
 package providers
 
+const (
+	// ParamsKey key for accept params
+	ParamsKey = "$params"
+	// ReturnsKey key for returned values
+	ReturnsKey = "$returns"
+)
+
 // Params is the input parameters of a provider.
 type Params[T any] struct {
 	Params T `json:"$params"`

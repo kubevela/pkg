@@ -17,17 +17,51 @@ limitations under the License.
 package util
 
 import (
+	"strings"
+
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/token"
 )
 
 // ToString stringify cue.Value with reference resolved
 func ToString(v cue.Value, opts ...cue.Option) (string, error) {
 	opts = append([]cue.Option{cue.Final(), cue.Docs(true), cue.All()}, opts...)
+	return toString(v, opts...)
+}
+
+// ToRawString stringify cue.Value without resolving references
+func ToRawString(v cue.Value, opts ...cue.Option) (string, error) {
+	opts = append([]cue.Option{cue.Raw(), cue.Docs(true), cue.All()}, opts...)
+	return toString(v, opts...)
+}
+
+func toString(v cue.Value, opts ...cue.Option) (string, error) {
 	node := v.Syntax(opts...)
-	bs, err := format.Node(node)
+	node = _format(node)
+	bs, err := format.Node(node, format.Simplify())
 	if err != nil {
 		return "", err
 	}
-	return string(bs), nil
+	return strings.TrimSpace(string(bs)), nil
+}
+
+func _format(n ast.Node) ast.Node {
+	switch x := n.(type) {
+	case *ast.StructLit:
+		var decls []ast.Decl
+		for _, elt := range x.Elts {
+			if _, ok := elt.(*ast.Ellipsis); ok {
+				continue
+			}
+			decls = append(decls, elt)
+		}
+		return &ast.File{Decls: decls}
+	case ast.Expr:
+		ast.SetRelPos(x, token.NoSpace)
+		return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: x}}}
+	default:
+		return x
+	}
 }
