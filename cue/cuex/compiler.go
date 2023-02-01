@@ -18,6 +18,7 @@ package cuex
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -25,6 +26,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -89,8 +91,19 @@ type withExtraData struct {
 
 // ApplyTo .
 func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
+	var err error
+	var data interface{}
+	switch raw := in.data.(type) {
+	case *runtime.RawExtension:
+		var byt []byte
+		if byt, err = raw.MarshalJSON(); err == nil {
+			err = json.Unmarshal(byt, &data)
+		}
+	default:
+		data = in.data
+	}
 	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, value cue.Value) (cue.Value, error) {
-		return value.FillPath(cue.ParsePath(in.path), in.data), nil
+		return value.FillPath(cue.ParsePath(in.path), data), err
 	})
 }
 
