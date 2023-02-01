@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"github.com/spf13/pflag"
 	"github.com/stretchr/testify/require"
+	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kubevela/pkg/cue/cuex"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
@@ -49,6 +50,12 @@ func TestCompile(t *testing.T) {
 	val, err := compiler.CompileStringWithOptions(ctx, str, cuex.WithExtraData("parameter.input", "example"))
 	require.NoError(t, err)
 	s, err := val.LookupPath(cue.ParsePath("output")).String()
+	require.NoError(t, err)
+	require.Equal(t, "ZXhhbXBsZQ==", s)
+
+	val, err = compiler.CompileStringWithOptions(ctx, str, cuex.WithExtraData("parameter", &kuberuntime.RawExtension{Raw: []byte(`{"input": "example"}`)}))
+	require.NoError(t, err)
+	s, err = val.LookupPath(cue.ParsePath("output")).String()
 	require.NoError(t, err)
 	require.Equal(t, "ZXhhbXBsZQ==", s)
 
