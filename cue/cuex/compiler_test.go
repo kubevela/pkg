@@ -30,6 +30,7 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
+	"github.com/kubevela/pkg/cue/util"
 	"github.com/kubevela/pkg/util/runtime"
 )
 
@@ -47,7 +48,9 @@ func TestCompile(t *testing.T) {
 		_enc: base64.#Encode & { $params: parameter.input }
 		output: _enc.$returns
 	`
-	val, err := compiler.CompileStringWithOptions(ctx, str, cuex.WithExtraData("parameter.input", "example"))
+	val, err := compiler.CompileStringWithOptions(ctx, str, cuex.WithExtraData("parameter", map[string]interface{}{
+		"input": "example",
+	}))
 	require.NoError(t, err)
 	s, err := val.LookupPath(cue.ParsePath("output")).String()
 	require.NoError(t, err)
@@ -58,6 +61,13 @@ func TestCompile(t *testing.T) {
 	s, err = val.LookupPath(cue.ParsePath("output")).String()
 	require.NoError(t, err)
 	require.Equal(t, "ZXhhbXBsZQ==", s)
+
+	var test *kuberuntime.RawExtension
+	val, err = compiler.CompileStringWithOptions(ctx, `a: parameter`, cuex.WithExtraData("parameter", test))
+	require.NoError(t, err)
+	s, err = util.ToString(val)
+	require.NoError(t, err)
+	require.Equal(t, "a: {}\nparameter: {}", s)
 
 	val, err = compiler.CompileStringWithOptions(ctx, str, cuex.DisableResolveProviderFunctions{})
 	require.NoError(t, err)
