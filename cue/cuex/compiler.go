@@ -19,6 +19,9 @@ package cuex
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"reflect"
+	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
@@ -26,7 +29,6 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -56,7 +58,7 @@ func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, e
 // CompileConfig config for running compile process
 type CompileConfig struct {
 	ResolveProviderFunctions bool
-	PreResolveMutators       []cuexruntime.NativeProviderFn
+	PreResolveMutators       []func(context.Context, string) (string, error)
 }
 
 // NewCompileConfig create new CompileConfig
@@ -77,33 +79,31 @@ type CompileOption interface {
 }
 
 // WithExtraData fill the cue.Value before resolve
-func WithExtraData(path string, data interface{}) CompileOption {
+func WithExtraData(key string, data interface{}) CompileOption {
 	return &withExtraData{
-		path: path,
+		key:  key,
 		data: data,
 	}
 }
 
 type withExtraData struct {
-	path string
+	key  string
 	data interface{}
 }
 
 // ApplyTo .
 func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
 	var err error
-	var data interface{}
-	switch raw := in.data.(type) {
-	case *runtime.RawExtension:
-		var byt []byte
-		if byt, err = raw.MarshalJSON(); err == nil {
-			err = json.Unmarshal(byt, &data)
+	var byt []byte
+	data := "{}"
+	if in.data != nil && !reflect.ValueOf(in.data).IsNil() {
+		if byt, err = json.Marshal(in.data); err == nil {
+			data = string(byt)
 		}
-	default:
-		data = in.data
 	}
-	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, value cue.Value) (cue.Value, error) {
-		return value.FillPath(cue.ParsePath(in.path), data), err
+	data = fmt.Sprintf("%s: %s", in.key, data)
+	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, template string) (string, error) {
+		return strings.Join([]string{template, data}, "\n"), err
 	})
 }
 
@@ -119,9 +119,15 @@ func (in DisableResolveProviderFunctions) ApplyTo(cfg *CompileConfig) {
 
 // CompileStringWithOptions compile given cue string with extra options
 func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, opts ...CompileOption) (cue.Value, error) {
+	var err error
 	cfg := NewCompileConfig(opts...)
 	bi := build.NewContext().NewInstance("", nil)
 	bi.Imports = in.PackageManager.GetImports()
+	for _, mutator := range cfg.PreResolveMutators {
+		if src, err = mutator(ctx, src); err != nil {
+			return cue.Value{}, err
+		}
+	}
 	f, err := parser.ParseFile("-", src, parser.ParseComments)
 	if err != nil {
 		return cue.Value{}, err
@@ -130,11 +136,6 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 		return cue.Value{}, err
 	}
 	val := cuecontext.New().BuildInstance(bi)
-	for _, mutator := range cfg.PreResolveMutators {
-		if val, err = mutator(ctx, val); err != nil {
-			return cue.Value{}, err
-		}
-	}
 	if cfg.ResolveProviderFunctions {
 		return in.Resolve(ctx, val)
 	}
@@ -234,5 +235,10 @@ func AddFlags(set *pflag.FlagSet) {
 
 // CompileString use cuex default compiler to compile cue string
 func CompileString(ctx context.Context, src string) (cue.Value, error) {
-	return DefaultCompiler.Get().CompileString(ctx, src)
+	return DefaultCompiler.Get().CompileStringWithOptions(ctx, src)
+}
+
+// CompileStringWithOptions use cuex default compiler to compile cue string with options
+func CompileStringWithOptions(ctx context.Context, src string, opts ...CompileOption) (cue.Value, error) {
+	return DefaultCompiler.Get().CompileStringWithOptions(ctx, src, opts...)
 }

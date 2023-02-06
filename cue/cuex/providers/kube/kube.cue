@@ -1,5 +1,32 @@
 package kube
 
+#Apply: {
+	#do:       "apply"
+	#provider: "kube"
+
+	// +usage=The params of this action
+	$params: {
+		// +usage=The cluster to use
+		cluster: *"" | string
+		// +usage=The resource to apply
+		resource: {...}
+		// +usage=The options to apply
+		options: {
+			// +usage=The strategy to apply the resource
+			threeWayMergePatch: {
+				// +usage=The strategy to apply the resource
+				enabled: *true | bool
+				// +usage=The annotation prefix to use for the three way merge patch
+				annotationPrefix: *"resource" | string
+			}
+		}
+	}
+	// +usage=The result of this action, will be filled with the patched resource after the action is executed
+	$returns: {
+		...
+	}
+}
+
 #Get: {
 	#do:       "get"
 	#provider: "kube"

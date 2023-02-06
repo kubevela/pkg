@@ -18,6 +18,7 @@ package kube_test
 
 import (
 	"context"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,8 +51,82 @@ func TestKube(t *testing.T) {
 	).Build()
 	singleton.KubeClient.Set(cli)
 	ctx := context.Background()
-	v, err := kube.Get(ctx, &kube.GetParams{
-		Params: kube.GetVars{
+
+	v, err := kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      "x",
+					"namespace": "x",
+					"labels": map[string]interface{}{
+						"label": "applied",
+					},
+				},
+			}},
+			Options: kube.ApplyOptions{
+				ThreeWayMergePatch: kube.ThreeWayMergePatchOptions{
+					Enabled:          true,
+					AnnotationPrefix: "test",
+				},
+			},
+		}})
+	require.NoError(t, err)
+	require.NotNil(t, v.Returns.Object["metadata"].(map[string]interface{})["annotations"].(map[string]interface{})["test.oam.dev/last-applied-configuration"])
+	v, err = kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      "x",
+					"namespace": "x",
+					"labels": map[string]interface{}{
+						"label": "applied-update",
+					},
+				},
+			}},
+		}})
+	require.NoError(t, err)
+	require.Equal(t, "applied-update", v.Returns.GetLabels()["label"])
+	// error cases
+	_, err = kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"test": math.Inf(1),
+			}},
+		}})
+	require.Error(t, err)
+	_, err = kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      math.Inf(1),
+					"namespace": "x",
+				},
+				"data": map[string]interface{}{
+					"test": math.Inf(1),
+				},
+			}},
+		}})
+	require.Error(t, err)
+	_, err = kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      math.Inf(1),
+					"namespace": "x",
+				},
+			}},
+		}})
+	require.Error(t, err)
+	_, err = kube.Apply(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
 			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "ConfigMap",
@@ -59,12 +134,28 @@ func TestKube(t *testing.T) {
 					"name":      "a",
 					"namespace": "x",
 				},
+				"data": map[string]interface{}{
+					"test": math.Inf(1),
+				},
+			}},
+		}})
+	require.Error(t, err)
+
+	v, err = kube.Get(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
+			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
+				"apiVersion": "v1",
+				"kind":       "ConfigMap",
+				"metadata": map[string]interface{}{
+					"name":      "x",
+					"namespace": "x",
+				},
 			}},
 		}})
 	require.NoError(t, err)
-	require.Equal(t, map[string]string{"label": "1"}, v.Returns.GetLabels())
-	v, err = kube.Get(ctx, &kube.GetParams{
-		Params: kube.GetVars{
+	require.Equal(t, map[string]string{"label": "applied-update"}, v.Returns.GetLabels())
+	v, err = kube.Get(ctx, &kube.ResourceParams{
+		Params: kube.ResourceVars{
 			Resource: &unstructured.Unstructured{Object: map[string]interface{}{
 				"apiVersion": "v2",
 			}},
