@@ -18,11 +18,14 @@ package k8s
 
 import (
 	"context"
+	"os"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"github.com/kubevela/pkg/meta"
 )
 
 // EnsureNamespace ensure namespace existence. If not, create it.
@@ -51,4 +54,13 @@ func ClearNamespace(ctx context.Context, c client.Client, ns string) error {
 		return err
 	}
 	return client.IgnoreNotFound(c.Delete(ctx, namespace))
+}
+
+// GetRuntimeNamespace get namespace of the current running pod, fall back to default vela system
+func GetRuntimeNamespace() string {
+	ns, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+	if err != nil {
+		return meta.NamespaceVelaSystem
+	}
+	return string(ns)
 }

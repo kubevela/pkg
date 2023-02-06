@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	pkgclient "github.com/kubevela/pkg/controller/client"
+	"github.com/kubevela/pkg/meta"
 	"github.com/kubevela/pkg/util/k8s"
 )
 
@@ -56,4 +57,6 @@ func TestNamespace(t *testing.T) {
 	require.NoError(t, k8s.ClearNamespace(ctx, cli, "notfound"))
 	require.Error(t, k8s.ClearNamespace(ctx, cli, "err"))
 	require.NoError(t, k8s.ClearNamespace(ctx, cli, "create"))
+
+	require.Equal(t, meta.NamespaceVelaSystem, k8s.GetRuntimeNamespace())
 }
