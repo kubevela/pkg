@@ -34,10 +34,10 @@ type RequestVars struct {
 	Method  string `json:"method"`
 	URL     string `json:"url"`
 	Request struct {
-		Body string `json:"body"`
+		Body    string      `json:"body"`
+		Header  http.Header `json:"header"`
+		Trailer http.Header `json:"trailer"`
 	} `json:"request"`
-	Header  http.Header `json:"header"`
-	Trailer http.Header `json:"trailer"`
 }
 
 // ResponseVars is the vars for http response
@@ -61,8 +61,8 @@ func Do(ctx context.Context, doParams *DoParams) (*DoReturns, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = params.Header
-	req.Trailer = params.Trailer
+	req.Header = params.Request.Header
+	req.Trailer = params.Request.Trailer
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
