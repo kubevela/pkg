@@ -29,13 +29,20 @@ The aim of CueX is to build a light engine for reach that goal.
 To allow users make extension to the native CUE rendering process, CueX uses a customized **Compiler** to do the *Resolve* work. It recursively loops over all the CUE values and find out struct as
 ```cue
 {
-	#do: string
-	#provider: string
-	...
+  #do: string
+  #provider: string
+
+  $params: {
+    ...
+  }
+
+  $returns: {
+    ...
+  }
 }
 ```
 
-It will search for the **ProviderFn** (specified by #do) in the given **Provider** and call the function to execute with the CUE value as inputs. Then it will fill back the returned CUE value. In this way, it is possible to define customized functions for either rendering or pure executing.
+It will search for the **ProviderFn** (specified by #do) in the given **Provider** and call the function. Note that every schema should have `params` and `returns`. CueX will execute the **ProviderFn** with `$params` value as inputs, then it will fill back the result to `$returns` after execution. In this way, it is possible to define customized functions for either rendering or pure executing.
 
 Each time a **ProviderFn** is called, the **Compiler** will repeat the *Resolve* work after the result of last execution is filled back. Executed CUE values will not be executed again in the later process. The repeated `Resolve` stops when no more CUE values that needs to be run.
 
@@ -44,9 +51,13 @@ To help CUE users recognize the input and output scheme for the function call, t
 ```cue
 import "vela/http"
 
-req: http.#Get & { url: "https://cuelang.org" }
+req: http.#Get & {
+  $params: {
+    url: "https://cuelang.org"
+  }
+}
 
-body: req.response.body
+body: req.$returns.body
 ```
 
 **CUETemplater** and **Provider** together compose **Package**, the basic unit for registering and discovery. By far, internal implementation of **Package** includes `base64`, `http`, `kube`, etc. **Packages** are managed in **PackageManager** which gives unified interface for access.
@@ -76,11 +87,11 @@ spec:
       #ListTables: {
         #do: "list-tables"
         #provider: "mysql"
-        input: {
+        $params: {
           conn: string
           db: string
         }
-        output?: [...#Table]
+        $returns: [...#Table]
       }
       ...
 ```
