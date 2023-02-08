@@ -116,3 +116,9 @@ By default, **PackageManager** only loads internal packages. There are functions
 2. *ListenExternalPackages*: Watch CustomResource Package changes in the target cluster.
 
 In the case that CueX only need to execute once, it is recommended to use the first option, (like Vela CLI). In other cases that updates are always needed (like Controller or WebServer), the second option is recommended.
+
+## Usage
+
+![usage](../../hack/cuex-usage.png)
+
+Currently, we're using CueX as the rendering engine for KubeVela. As shown in the diagram, you can register your customized package and use it in your Definition.
