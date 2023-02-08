@@ -96,6 +96,21 @@ spec:
       ...
 ```
 
+And you can use this package in your CUE code like
+
+```cue
+import "ext/db/mysql"
+
+list: mysql.#ListTables & {
+  $params: {
+    conn: "my-connect"
+    db: "my-db"
+  }
+}
+
+tables: list.$returns
+```
+
 By default, **PackageManager** only loads internal packages. There are functions for it to load external packages:
 1. *LoadExternalPackages*: Load Packages from CustomResource in the target cluster at once.
 2. *ListenExternalPackages*: Watch CustomResource Package changes in the target cluster.
