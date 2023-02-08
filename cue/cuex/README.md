@@ -96,8 +96,29 @@ spec:
       ...
 ```
 
+And you can use this package in your CUE code like
+
+```cue
+import "ext/db/mysql"
+
+list: mysql.#ListTables & {
+  $params: {
+    conn: "my-connect"
+    db: "my-db"
+  }
+}
+
+tables: list.$returns
+```
+
 By default, **PackageManager** only loads internal packages. There are functions for it to load external packages:
 1. *LoadExternalPackages*: Load Packages from CustomResource in the target cluster at once.
 2. *ListenExternalPackages*: Watch CustomResource Package changes in the target cluster.
 
 In the case that CueX only need to execute once, it is recommended to use the first option, (like Vela CLI). In other cases that updates are always needed (like Controller or WebServer), the second option is recommended.
+
+## Usage
+
+![usage](../../hack/cuex-usage.png)
+
+Currently, we're using CueX as the rendering engine for KubeVela. As shown in the diagram, you can register your customized package and use it in your Definition.
