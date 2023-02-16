@@ -41,6 +41,10 @@ type delegatingClient struct {
 	mapper meta.RESTMapper
 }
 
+func (d *delegatingClient) SubResource(subResource string) client.SubResourceClient {
+	return d.SubResource(subResource)
+}
+
 // Scheme returns the scheme this client is using.
 func (d *delegatingClient) Scheme() *runtime.Scheme {
 	return d.scheme
@@ -81,13 +85,13 @@ func (d *delegatingReader) shouldBypassCache(obj runtime.Object) (bool, error) {
 }
 
 // Get retrieves an obj for a given object key from the Kubernetes Cluster.
-func (d *delegatingReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (d *delegatingReader) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	if isUncached, err := d.shouldBypassCache(obj); err != nil {
 		return err
 	} else if cluster, _ := multicluster.ClusterFrom(ctx); !multicluster.IsLocal(cluster) || isUncached {
-		return d.ClientReader.Get(ctx, key, obj)
+		return d.ClientReader.Get(ctx, key, obj, opts...)
 	}
-	return d.CacheReader.Get(ctx, key, obj)
+	return d.CacheReader.Get(ctx, key, obj, opts...)
 }
 
 // List retrieves list of objects for a given namespace and list options.

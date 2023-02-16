@@ -61,10 +61,10 @@ type TimeoutClient struct {
 }
 
 // Get .
-func (in *TimeoutClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (in *TimeoutClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	ctx, cancel := in.WithTimeout(ctx)
 	defer cancel()
-	return in.Client.Get(ctx, key, obj)
+	return in.Client.Get(ctx, key, obj, opts...)
 }
 
 // List .
@@ -124,14 +124,14 @@ type TimeoutStatusWriter struct {
 }
 
 // Update .
-func (in *TimeoutStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (in *TimeoutStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.StatusWriter.Update(ctx, obj, opts...)
 }
 
 // Patch .
-func (in *TimeoutStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (in *TimeoutStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	ctx, cancel := in.WithMutatingTimeout(ctx)
 	defer cancel()
 	return in.StatusWriter.Patch(ctx, obj, patch, opts...)

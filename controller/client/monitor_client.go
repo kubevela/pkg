@@ -79,10 +79,10 @@ type monitorCache struct {
 	cache.Cache
 }
 
-func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cb := monitor(ctx, "GetCache", obj)
 	defer cb()
-	return c.Cache.Get(ctx, key, obj)
+	return c.Cache.Get(ctx, key, obj, opts...)
 }
 
 func (c *monitorCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -96,10 +96,10 @@ type monitorClient struct {
 	client.Client
 }
 
-func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cb := monitor(ctx, "Get", obj)
 	defer cb()
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 func (c *monitorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -147,13 +147,13 @@ type monitorStatusWriter struct {
 	client.StatusWriter
 }
 
-func (w *monitorStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (w *monitorStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	cb := monitor(ctx, "StatusUpdate", obj)
 	defer cb()
 	return w.StatusWriter.Update(ctx, obj, opts...)
 }
 
-func (w *monitorStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (w *monitorStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	cb := monitor(ctx, "StatusPatch", obj)
 	defer cb()
 	return w.StatusWriter.Patch(ctx, obj, patch, opts...)

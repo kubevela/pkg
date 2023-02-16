@@ -30,11 +30,11 @@ type DelegatingHandlerClient struct {
 }
 
 // Get resource by overridden getter
-func (c DelegatingHandlerClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c DelegatingHandlerClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	if c.Getter != nil {
 		return c.Getter(ctx, key, obj)
 	}
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 // List resource by overridden lister

@@ -19,12 +19,12 @@ package multicluster
 import (
 	"context"
 	"os"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // gatedClient use base client to handle hub cluster requests and
@@ -59,7 +59,7 @@ func (m *gatedStatusWriter) getWriterFor(ctx context.Context) client.StatusWrite
 	return m.gateway
 }
 
-func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	return m.getClientFor(ctx).Get(ctx, key, obj)
 }
 
@@ -99,11 +99,19 @@ func (m *gatedClient) RESTMapper() meta.RESTMapper {
 	return m.base.RESTMapper()
 }
 
-func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (m *gatedClient) SubResource(subResource string) client.SubResourceClient {
+	return m.base.SubResource(subResource)
+}
+
+func (m *gatedStatusWriter) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	return m.getWriterFor(ctx).Create(ctx, obj, subResource, opts...)
+}
+
+func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	return m.getWriterFor(ctx).Update(ctx, obj, opts...)
 }
 
-func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	return m.getWriterFor(ctx).Patch(ctx, obj, patch, opts...)
 }
 
