@@ -22,6 +22,10 @@ import (
 
 // Package is an extension for cuex engine
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:printcolumn:name="PATH",type=string,JSONPath=`.spec.path`
+// +kubebuilder:printcolumn:name="PROTO",type=string,JSONPath=`.spec.provider.protocol`
+// +kubebuilder:printcolumn:name="ENDPOINT",type=string,JSONPath=`.spec.provider.endpoint`
+// +kubebuilder:resource:shortName={pkg,cpkg,cuepkg,cuepackage}
 type Package struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

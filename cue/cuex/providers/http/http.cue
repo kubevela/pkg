@@ -30,7 +30,7 @@ package http
 		// +usage=The trailer of the response
 		trailer?: [string]: [...string]
 		// +usage=The status code of the response
-		statusCode: int
+		statusCode?: int
 		...
 	}
 	...
