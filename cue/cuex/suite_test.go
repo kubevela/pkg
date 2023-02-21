@@ -44,8 +44,11 @@ func TestCuex(t *testing.T) {
 
 var _ = bootstrap.InitKubeBuilderForTest(bootstrap.WithCRDPath("../../crds/cue.oam.dev_packages.yaml"))
 
-type toUpperVar struct {
-	Input  string `json:"input"`
+type toUpperIn struct {
+	Input string `json:"input"`
+}
+
+type toUpperOut struct {
 	Output string `json:"output"`
 }
 
@@ -61,13 +64,13 @@ var _ = Describe("Test Cuex Compiler", func() {
 				writer.WriteHeader(400)
 				return
 			}
-			v := &toUpperVar{}
-			if err := json.Unmarshal(bs, v); err != nil {
+			in := &toUpperIn{}
+			if err := json.Unmarshal(bs, in); err != nil {
 				writer.WriteHeader(400)
 				return
 			}
-			v.Output = strings.ToUpper(v.Input)
-			if bs, err = json.Marshal(v); err != nil {
+			out := &toUpperOut{Output: strings.ToUpper(in.Input)}
+			if bs, err = json.Marshal(out); err != nil {
 				writer.WriteHeader(500)
 				return
 			}
@@ -90,8 +93,8 @@ var _ = Describe("Test Cuex Compiler", func() {
 					#ToUpper: {
 						#do: "toUpper"
 						#provider: "string-util"
-						input: string
-						output?: string
+						$params: input: string
+						$returns?: output: string
 					}
 				`,
 				},
@@ -127,10 +130,10 @@ var _ = Describe("Test Cuex Compiler", func() {
 		}
 
 		toUpper: sutil.#ToUpper & {
-			input: decode.$returns
+			$params: input: decode.$returns
 		}
 		
-		output: toUpper.output
+		output: toUpper.$returns.output
 	`)
 		Ω(err).To(Succeed())
 		s, err := v.LookupPath(cue.ParsePath("output")).String()

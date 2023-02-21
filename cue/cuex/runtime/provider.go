@@ -19,6 +19,7 @@ package runtime
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -28,6 +29,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kubevela/pkg/apis/cue/v1alpha1"
+	"github.com/kubevela/pkg/cue/cuex/providers"
+	"github.com/kubevela/pkg/util/singleton"
 )
 
 var _ ProviderFn = GenericProviderFn[any, any](nil)
@@ -58,21 +61,35 @@ var _ ProviderFn = (*ExternalProviderFn)(nil)
 // ExternalProviderFn external provider that implements ProviderFn interface
 type ExternalProviderFn v1alpha1.Provider
 
+// DefaultClientInsecureSkipVerify set if the default external provider client
+// use insecure-skip-verify
+var DefaultClientInsecureSkipVerify = true
+
+// DefaultClient client for dealing requests
+var DefaultClient = singleton.NewSingleton(func() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: DefaultClientInsecureSkipVerify},
+		},
+	}
+})
+
 // Call dial external endpoints by passing the json data of the input parameter,
 // then fill back returned values
 func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Value, error) {
-	bs, err := value.MarshalJSON()
+	params := value.LookupPath(cue.ParsePath(providers.ParamsKey))
+	bs, err := params.MarshalJSON()
 	if err != nil {
 		return value, err
 	}
 	switch in.Protocol {
-	case v1alpha1.ProtocolHTTP:
+	case v1alpha1.ProtocolHTTP, v1alpha1.ProtocolHTTPS:
 		req, err := http.NewRequest(http.MethodPost, in.Endpoint, bytes.NewReader(bs))
 		if err != nil {
 			return value, err
 		}
 		req.Header.Set("Content-Type", runtime.ContentTypeJSON)
-		resp, err := http.DefaultClient.Do(req.WithContext(ctx))
+		resp, err := DefaultClient.Get().Do(req.WithContext(ctx))
 		if err != nil {
 			return value, err
 		}
@@ -89,7 +106,7 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 	if err = json.Unmarshal(bs, ret); err != nil {
 		return value, err
 	}
-	return value.FillPath(cue.ParsePath(""), ret), nil
+	return value.FillPath(cue.ParsePath(providers.ReturnsKey), ret), nil
 }
 
 var _ ProviderFn = NativeProviderFn(nil)

@@ -24,8 +24,6 @@ import (
 
 	"cuelang.org/go/cue"
 	"github.com/emicklei/go-restful/v3"
-	"k8s.io/klog/v2"
-	"sigs.k8s.io/yaml"
 
 	"github.com/kubevela/pkg/cue/util"
 )
@@ -53,41 +51,36 @@ func NewCompileServer(fn CompileFn) *CompileServer {
 func (in *CompileServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	bs, err := io.ReadAll(r.Body)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = fmt.Fprintf(w, "read request body error: %s", err.Error())
+		http.Error(w, fmt.Sprintf("read request body error: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
 	val, err := in.fn(r.Context(), string(bs))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = fmt.Fprintf(w, "compile cue error: %s", err.Error())
+		http.Error(w, fmt.Sprintf("compile cue error: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
+	var options []util.PrintOption
 	if path := r.URL.Query().Get(paramKeyPath); len(path) > 0 {
-		val = val.LookupPath(cue.ParsePath(path))
+		options = append(options, util.WithPath(path))
 	}
 	switch r.Header.Get(restful.HEADER_Accept) {
 	case mimeCue:
 		w.Header().Set(restful.HEADER_ContentEncoding, mimeCue)
-		s, e := util.ToString(val)
-		bs, err = []byte(s), e
+		options = append(options, util.WithFormat(util.PrintFormatCue))
 	case mimeYaml:
 		w.Header().Set(restful.HEADER_ContentEncoding, mimeYaml)
-		if bs, err = val.MarshalJSON(); err == nil {
-			bs, err = yaml.JSONToYAML(bs)
-		}
+		options = append(options, util.WithFormat(util.PrintFormatYaml))
 	default:
 		w.Header().Set(restful.HEADER_ContentEncoding, restful.MIME_JSON)
-		bs, err = val.MarshalJSON()
+		options = append(options, util.WithFormat(util.PrintFormatJson))
 	}
+	bs, err = util.Print(val, options...)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_, _ = fmt.Fprintf(w, "content encode error: %s", err.Error())
+		http.Error(w, fmt.Sprintf("content encode error: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
-	if _, err = fmt.Fprint(w, string(bs)); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		klog.Errorf("unexpected error when writing response: %s", err.Error())
+	if _, err = w.Write(bs); err != nil {
+		http.Error(w, fmt.Sprintf("unexpected error when writing response: %s", err.Error()), http.StatusInternalServerError)
 		return
 	}
 	w.WriteHeader(http.StatusOK)

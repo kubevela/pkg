@@ -48,6 +48,8 @@ const (
 	ProtocolGRPC ProviderProtocol = "grpc"
 	// ProtocolHTTP protocol type http for external Provider
 	ProtocolHTTP ProviderProtocol = "http"
+	// ProtocolHTTPS protocol type https for external Provider
+	ProtocolHTTPS ProviderProtocol = "https"
 )
 
 // Provider the external Provider in Package for cuex to run functions

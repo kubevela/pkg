@@ -109,14 +109,17 @@ func TestExternalProviderFn(t *testing.T) {
 		Endpoint: server.URL,
 	}
 	v := cuecontext.New().CompileString(`{
-		input: "value"
-		output?: string
+		$params: input: "value"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	out, err := prd.Call(context.Background(), v)
 	require.NoError(t, err)
 	_v := &value{}
-	require.NoError(t, out.Decode(_v))
-	require.Equal(t, _v.Output, "VALUE")
+	require.NoError(t, out.LookupPath(cue.ParsePath(providers.ReturnsKey)).Decode(_v))
+	require.Equal(t, "VALUE", _v.Output)
 
 	// test invalid input
 	badInput := cuecontext.New().CompileString(`what?`)
@@ -125,16 +128,22 @@ func TestExternalProviderFn(t *testing.T) {
 
 	// test invalid output
 	badOutput := cuecontext.New().CompileString(`{
-		input: "?"
-		output?: string
+		$params: input: "?"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	_, err = prd.Call(context.Background(), badOutput)
 	require.Error(t, err)
 
 	// test bad response
 	badResp := cuecontext.New().CompileString(`{
-		input: "-"
-		output?: string
+		$params: input: "-"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	_, err = prd.Call(context.Background(), badResp)
 	require.Error(t, err)
