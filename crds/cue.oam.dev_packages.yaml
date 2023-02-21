@@ -12,10 +12,25 @@ spec:
     kind: Package
     listKind: PackageList
     plural: packages
+    shortNames:
+    - pkg
+    - cpkg
+    - cuepkg
+    - cuepackage
     singular: package
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.path
+      name: PATH
+      type: string
+    - jsonPath: .spec.provider.protocol
+      name: PROTO
+      type: string
+    - jsonPath: .spec.provider.endpoint
+      name: ENDPOINT
+      type: string
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: Package is an extension for cuex engine
@@ -63,3 +78,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}
