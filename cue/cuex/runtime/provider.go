@@ -59,7 +59,10 @@ func (fn GenericProviderFn[T, U]) Call(ctx context.Context, value cue.Value) (cu
 var _ ProviderFn = (*ExternalProviderFn)(nil)
 
 // ExternalProviderFn external provider that implements ProviderFn interface
-type ExternalProviderFn v1alpha1.Provider
+type ExternalProviderFn struct {
+	v1alpha1.Provider
+	Fn string
+}
 
 // DefaultClientInsecureSkipVerify set if the default external provider client
 // use insecure-skip-verify
@@ -73,6 +76,9 @@ var DefaultClient = singleton.NewSingleton(func() *http.Client {
 		},
 	}
 })
+
+// FunctionHeaderKey http header for recording cuex provider function
+const FunctionHeaderKey = "CueX-External-Provider-Function"
 
 // Call dial external endpoints by passing the json data of the input parameter,
 // then fill back returned values
@@ -89,6 +95,7 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 			return value, err
 		}
 		req.Header.Set("Content-Type", runtime.ContentTypeJSON)
+		req.Header.Set(FunctionHeaderKey, in.Fn)
 		resp, err := DefaultClient.Get().Do(req.WithContext(ctx))
 		if err != nil {
 			return value, err

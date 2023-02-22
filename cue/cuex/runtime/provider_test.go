@@ -105,8 +105,10 @@ func TestExternalProviderFn(t *testing.T) {
 
 	// test normal
 	prd := runtime.ExternalProviderFn{
-		Protocol: v1alpha1.ProtocolHTTP,
-		Endpoint: server.URL,
+		Provider: v1alpha1.Provider{
+			Protocol: v1alpha1.ProtocolHTTP,
+			Endpoint: server.URL,
+		},
 	}
 	v := cuecontext.New().CompileString(`{
 		$params: input: "value"
@@ -150,16 +152,20 @@ func TestExternalProviderFn(t *testing.T) {
 
 	// test invalid protocol
 	prd = runtime.ExternalProviderFn{
-		Protocol: "-",
-		Endpoint: server.URL,
+		Provider: v1alpha1.Provider{
+			Protocol: "-",
+			Endpoint: server.URL,
+		},
 	}
 	_, err = prd.Call(context.Background(), v)
 	require.Error(t, fmt.Errorf("protocol - not supported yet"), err)
 
 	// test bad endpoint
 	prd = runtime.ExternalProviderFn{
-		Protocol: v1alpha1.ProtocolHTTP,
-		Endpoint: "?",
+		Provider: v1alpha1.Provider{
+			Protocol: v1alpha1.ProtocolHTTP,
+			Endpoint: "?",
+		},
 	}
 	_, err = prd.Call(context.Background(), v)
 	require.Error(t, err)
