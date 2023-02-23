@@ -105,18 +105,23 @@ func TestExternalProviderFn(t *testing.T) {
 
 	// test normal
 	prd := runtime.ExternalProviderFn{
-		Protocol: v1alpha1.ProtocolHTTP,
-		Endpoint: server.URL,
+		Provider: v1alpha1.Provider{
+			Protocol: v1alpha1.ProtocolHTTP,
+			Endpoint: server.URL,
+		},
 	}
 	v := cuecontext.New().CompileString(`{
-		input: "value"
-		output?: string
+		$params: input: "value"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	out, err := prd.Call(context.Background(), v)
 	require.NoError(t, err)
 	_v := &value{}
-	require.NoError(t, out.Decode(_v))
-	require.Equal(t, _v.Output, "VALUE")
+	require.NoError(t, out.LookupPath(cue.ParsePath(providers.ReturnsKey)).Decode(_v))
+	require.Equal(t, "VALUE", _v.Output)
 
 	// test invalid input
 	badInput := cuecontext.New().CompileString(`what?`)
@@ -125,32 +130,42 @@ func TestExternalProviderFn(t *testing.T) {
 
 	// test invalid output
 	badOutput := cuecontext.New().CompileString(`{
-		input: "?"
-		output?: string
+		$params: input: "?"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	_, err = prd.Call(context.Background(), badOutput)
 	require.Error(t, err)
 
 	// test bad response
 	badResp := cuecontext.New().CompileString(`{
-		input: "-"
-		output?: string
+		$params: input: "-"
+		$returns?: {
+			output?: string
+			...
+		}
 	}`)
 	_, err = prd.Call(context.Background(), badResp)
 	require.Error(t, err)
 
 	// test invalid protocol
 	prd = runtime.ExternalProviderFn{
-		Protocol: "-",
-		Endpoint: server.URL,
+		Provider: v1alpha1.Provider{
+			Protocol: "-",
+			Endpoint: server.URL,
+		},
 	}
 	_, err = prd.Call(context.Background(), v)
 	require.Error(t, fmt.Errorf("protocol - not supported yet"), err)
 
 	// test bad endpoint
 	prd = runtime.ExternalProviderFn{
-		Protocol: v1alpha1.ProtocolHTTP,
-		Endpoint: "?",
+		Provider: v1alpha1.Provider{
+			Protocol: v1alpha1.ProtocolHTTP,
+			Endpoint: "?",
+		},
 	}
 	_, err = prd.Call(context.Background(), v)
 	require.Error(t, err)

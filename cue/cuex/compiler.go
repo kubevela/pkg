@@ -231,6 +231,7 @@ var (
 func AddFlags(set *pflag.FlagSet) {
 	set.BoolVarP(&EnableExternalPackageForDefaultCompiler, "enable-external-cue-package", "", EnableExternalPackageForDefaultCompiler, "enable load external package for cuex default compiler")
 	set.BoolVarP(&EnableExternalPackageWatchForDefaultCompiler, "list-watch-external-cue-package", "", EnableExternalPackageWatchForDefaultCompiler, "enable watch external package changes for cuex default compiler")
+	set.BoolVarP(&cuexruntime.DefaultClientInsecureSkipVerify, "cuex-external-provider-insecure-skip-verify", "", cuexruntime.DefaultClientInsecureSkipVerify, "Set if the default external provider client of cuex should skip insecure verify")
 }
 
 // CompileString use cuex default compiler to compile cue string

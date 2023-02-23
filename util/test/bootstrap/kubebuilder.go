@@ -56,7 +56,11 @@ func InitKubeBuilderForTest(options ...InitKubeConfigOption) *rest.Config {
 		workDir, err := os.Getwd()
 		Ω(err).To(Succeed())
 		if initCfg.crdPath != nil {
-			testEnv.CRDDirectoryPaths = []string{filepath.Join(workDir, *initCfg.crdPath)}
+			path := *initCfg.crdPath
+			if !filepath.IsAbs(path) {
+				path = filepath.Join(workDir, *initCfg.crdPath)
+			}
+			testEnv.CRDDirectoryPaths = []string{path}
 		}
 		_cfg, err := testEnv.Start()
 		cfg = *_cfg

@@ -80,8 +80,10 @@ func (in *externalPackage) GetProviderFn(do string) ProviderFn {
 	if in.src.Spec.Provider == nil {
 		return nil
 	}
-	fn := ExternalProviderFn(*in.src.Spec.Provider)
-	return &fn
+	return &ExternalProviderFn{
+		Provider: *in.src.Spec.Provider,
+		Fn:       do,
+	}
 }
 
 func (in *externalPackage) GetName() string {
