@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"cuelang.org/go/cue"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -77,9 +78,6 @@ var DefaultClient = singleton.NewSingleton(func() *http.Client {
 	}
 })
 
-// FunctionHeaderKey http header for recording cuex provider function
-const FunctionHeaderKey = "CueX-External-Provider-Function"
-
 // Call dial external endpoints by passing the json data of the input parameter,
 // then fill back returned values
 func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Value, error) {
@@ -90,12 +88,12 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 	}
 	switch in.Protocol {
 	case v1alpha1.ProtocolHTTP, v1alpha1.ProtocolHTTPS:
-		req, err := http.NewRequest(http.MethodPost, in.Endpoint, bytes.NewReader(bs))
+		ep := fmt.Sprintf("%s/%s", strings.TrimSuffix(in.Endpoint, "/"), in.Fn)
+		req, err := http.NewRequest(http.MethodPost, ep, bytes.NewReader(bs))
 		if err != nil {
 			return value, err
 		}
 		req.Header.Set("Content-Type", runtime.ContentTypeJSON)
-		req.Header.Set(FunctionHeaderKey, in.Fn)
 		resp, err := DefaultClient.Get().Do(req.WithContext(ctx))
 		if err != nil {
 			return value, err
