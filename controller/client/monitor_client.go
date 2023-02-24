@@ -64,7 +64,7 @@ func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 	return func() {
 		v := time.Since(begin).Seconds()
 		controllerClientRequestLatency.WithLabelValues(
-			velaruntime.GetControllerInCaller(),
+			velaruntime.GetController(ctx),
 			cluster,
 			verb,
 			k8s.GetKindForObject(obj, true),

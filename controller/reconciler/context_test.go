@@ -25,12 +25,13 @@ import (
 )
 
 func TestReconcileContext(t *testing.T) {
-	baseCtx := context.Background()
+	baseCtx := context.WithValue(context.Background(), "base", "b")
 	t0 := time.Now().Add(ReconcileTimeout)
 	ctx, _ := NewReconcileContext(baseCtx)
 	_ctx, ok := BaseContextFrom(ctx)
 	require.True(t, ok)
-	require.Equal(t, baseCtx, _ctx)
+	b, _ := _ctx.Value("base").(string)
+	require.Equal(t, "b", b)
 	t1 := time.Now().Add(ReconcileTimeout)
 	ddl, ok := ctx.Deadline()
 	require.True(t, ok)

@@ -19,6 +19,8 @@ package reconciler
 import (
 	"context"
 	"time"
+
+	"github.com/kubevela/pkg/util/runtime"
 )
 
 type contextKey int
@@ -34,6 +36,7 @@ var (
 
 // NewReconcileContext create context with default timeout (60s)
 func NewReconcileContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx = runtime.WithController(ctx, runtime.GetControllerInCaller())
 	return context.WithTimeout(WithBaseContext(ctx, ctx), ReconcileTimeout)
 }
 
