@@ -17,10 +17,35 @@ limitations under the License.
 package runtime
 
 import (
+	"context"
 	"regexp"
 
 	"github.com/go-stack/stack"
 )
+
+type contextKey int
+
+const controllerKey contextKey = iota
+
+// WithController store controller in context
+func WithController(ctx context.Context, controller string) context.Context {
+	return context.WithValue(ctx, controllerKey, controller)
+}
+
+// ControllerFrom extract controller from context
+func ControllerFrom(ctx context.Context) (string, bool) {
+	controller, ok := ctx.Value(controllerKey).(string)
+	return controller, ok
+}
+
+// GetController retrieve controller from context. Fall back to find controller
+// in call trace if not empty.
+func GetController(ctx context.Context) string {
+	if controller, _ := ControllerFrom(ctx); controller != "" {
+		return controller
+	}
+	return GetControllerInCaller()
+}
 
 var (
 	controllerFilenamePattern = regexp.MustCompile("([a-z]+)_?controller.go")
