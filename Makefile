@@ -16,4 +16,4 @@ unit-test:
 lint:
 	golangci-lint run ./...
 
-reviewable: fmt vet
+reviewable: generate fmt vet tidy lint
