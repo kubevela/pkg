@@ -28,6 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	"github.com/kubevela/pkg/util/k8s"
+	"github.com/kubevela/pkg/util/singleton"
 )
 
 func TestGetGVKFromResource(t *testing.T) {
@@ -35,23 +36,24 @@ func TestGetGVKFromResource(t *testing.T) {
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "", Kind: "Namespace"}, meta.RESTScopeRoot)
 	cli := fake.NewClientBuilder().WithRESTMapper(mapper).Build()
+	singleton.KubeClient.Set(cli)
 	ctx := context.Background()
 	testcases := map[string]struct {
-		resource    k8s.Resource
+		resource    k8s.ResourceIdentifier
 		expectedErr string
 	}{
 		"valid": {
-			resource: k8s.Resource{Group: "apps", Resource: "Deployment"},
+			resource: k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment"},
 		},
 		"invalid": {
-			resource:    k8s.Resource{Group: "invalid", Resource: "Deployment"},
+			resource:    k8s.ResourceIdentifier{Group: "invalid", Resource: "Deployment"},
 			expectedErr: "no matches for invalid",
 		},
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			_, err := k8s.GetGVKFromResource(ctx, cli, tc.resource)
+			_, err := k8s.GetGVKFromResource(ctx, tc.resource)
 			if tc.expectedErr != "" {
 				r.Contains(err.Error(), tc.expectedErr)
 				return
@@ -86,7 +88,7 @@ func TestIsGroupVersionKindNamespaceScoped(t *testing.T) {
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			result, err := k8s.IsGroupVersionKindNamespaceScoped(mapper, tc.gvk)
+			result, err := k8s.IsGVKNamespaced(tc.gvk, mapper)
 			if tc.expectedErr != "" {
 				r.Contains(err.Error(), tc.expectedErr)
 				return
@@ -109,27 +111,28 @@ func TestGetUnstructuredFromResource(t *testing.T) {
 			},
 		},
 	).WithRESTMapper(mapper).Build()
+	singleton.KubeClient.Set(cli)
 	ctx := context.Background()
 	testcases := map[string]struct {
-		resource    k8s.Resource
+		resource    k8s.ResourceIdentifier
 		expectedErr string
 	}{
 		"valid": {
-			resource: k8s.Resource{Group: "apps", Resource: "Deployment", Name: "test-deploy", Namespace: "default"},
+			resource: k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment", Name: "test-deploy", Namespace: "default"},
 		},
 		"not-found": {
-			resource:    k8s.Resource{Group: "apps", Resource: "Deployment", Name: "not-found", Namespace: "default"},
+			resource:    k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment", Name: "not-found", Namespace: "default"},
 			expectedErr: "not found",
 		},
 		"invalid": {
-			resource:    k8s.Resource{Group: "invalid", Resource: "Deployment"},
+			resource:    k8s.ResourceIdentifier{Group: "invalid", Resource: "Deployment"},
 			expectedErr: "no matches for invalid",
 		},
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			_, err := k8s.GetUnstructuredFromResource(ctx, cli, tc.resource)
+			_, err := k8s.GetUnstructuredFromResource(ctx, tc.resource)
 			if tc.expectedErr != "" {
 				r.Contains(err.Error(), tc.expectedErr)
 				return

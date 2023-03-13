@@ -36,7 +36,7 @@ import (
 
 // SubResource .
 type SubResource struct {
-	k8s.Resource
+	k8s.ResourceIdentifier
 	Children []SubResource `json:"children"`
 }
 
@@ -48,15 +48,15 @@ type ResourceSelector struct {
 	SelectorValue cue.Value `json:"selectorValue"`
 }
 
-type resourceTopology struct {
+type engine struct {
 	ruleTemplate string
 	rules        map[string]cue.Value
 }
 
-// ResourceTopology .
-type ResourceTopology interface {
-	GetSubResources(ctx context.Context, resource k8s.Resource) ([]SubResource, error)
-	GetPeerResources(ctx context.Context, resource k8s.Resource) ([]k8s.Resource, error)
+// Engine .
+type Engine interface {
+	GetSubResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]SubResource, error)
+	GetPeerResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error)
 }
 
 const (
@@ -74,16 +74,16 @@ const (
 )
 
 // New .
-func New(rules string) ResourceTopology {
-	return &resourceTopology{
+func New(rules string) Engine {
+	return &engine{
 		ruleTemplate: rules,
 		rules:        make(map[string]cue.Value),
 	}
 }
 
 // GetSubResources get sub resources of given resource
-func (r *resourceTopology) GetSubResources(ctx context.Context, resource k8s.Resource) ([]SubResource, error) {
-	un, err := k8s.GetUnstructuredFromResource(ctx, singleton.KubeClient.Get(), resource)
+func (r *engine) GetSubResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]SubResource, error) {
+	un, err := k8s.GetUnstructuredFromResource(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func (r *resourceTopology) GetSubResources(ctx context.Context, resource k8s.Res
 	return r.getSubResources(ctx, v, resource)
 }
 
-func (r *resourceTopology) getSubResources(ctx context.Context, v cue.Value, resource k8s.Resource) ([]SubResource, error) {
+func (r *engine) getSubResources(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]SubResource, error) {
 	subResources := make([]SubResource, 0)
 	rule, err := r.getRuleForResource(ctx, v, resource)
 	if err != nil {
@@ -121,15 +121,15 @@ func (r *resourceTopology) getSubResources(ctx context.Context, v cue.Value, res
 				return nil, err
 			}
 			subResources = append(subResources, SubResource{
-				Resource: item,
-				Children: children,
+				ResourceIdentifier: item,
+				Children:           children,
 			})
 		}
 	}
 	return subResources, nil
 }
 
-func (r *resourceTopology) getRuleForResource(ctx context.Context, v cue.Value, resource k8s.Resource) (cue.Value, error) {
+func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) (cue.Value, error) {
 	if r.rules == nil {
 		r.rules = make(map[string]cue.Value)
 		v = v.LookupPath(cue.ParsePath(rulesKey))
@@ -141,7 +141,7 @@ func (r *resourceTopology) getRuleForResource(ctx context.Context, v cue.Value, 
 			return cue.Value{}, errors.Wrap(err, "rules should be a list")
 		}
 		for iter.Next() {
-			re := &k8s.Resource{}
+			re := &k8s.ResourceIdentifier{}
 			if err := iter.Value().Decode(re); err != nil {
 				return cue.Value{}, err
 			}
@@ -155,8 +155,8 @@ func (r *resourceTopology) getRuleForResource(ctx context.Context, v cue.Value, 
 }
 
 // GetPeerResources get peer resources of given resource
-func (r *resourceTopology) GetPeerResources(ctx context.Context, resource k8s.Resource) ([]k8s.Resource, error) {
-	un, err := k8s.GetUnstructuredFromResource(ctx, singleton.KubeClient.Get(), resource)
+func (r *engine) GetPeerResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
+	un, err := k8s.GetUnstructuredFromResource(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (r *resourceTopology) GetPeerResources(ctx context.Context, resource k8s.Re
 	return r.getPeerResources(ctx, rule, resource)
 }
 
-func (r *resourceTopology) getPeerResources(ctx context.Context, rule cue.Value, resource k8s.Resource) ([]k8s.Resource, error) {
+func (r *engine) getPeerResources(ctx context.Context, rule cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
 	peer := rule.LookupPath(cue.ParsePath(peerResourcesKey))
 	if !peer.Exists() {
 		return nil, nil
@@ -187,7 +187,7 @@ func (r *resourceTopology) getPeerResources(ctx context.Context, rule cue.Value,
 	if err != nil {
 		return nil, errors.Wrap(err, "peerResources should be a list")
 	}
-	peerResources := make([]k8s.Resource, 0)
+	peerResources := make([]k8s.ResourceIdentifier, 0)
 	for iter.Next() {
 		items, err := r.getResourcesWithSelector(ctx, iter.Value(), resource)
 		if err != nil {
@@ -198,8 +198,8 @@ func (r *resourceTopology) getPeerResources(ctx context.Context, rule cue.Value,
 	return peerResources, nil
 }
 
-func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.Value, resource k8s.Resource) ([]k8s.Resource, error) {
-	base := &k8s.Resource{}
+func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
+	base := &k8s.ResourceIdentifier{}
 	if err := v.Decode(base); err != nil {
 		return nil, err
 	}
@@ -211,7 +211,7 @@ func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.V
 	if err != nil {
 		return nil, err
 	}
-	resources := make([]k8s.Resource, 0)
+	resources := make([]k8s.ResourceIdentifier, 0)
 	for fields.Next() {
 		switch fields.Label() {
 		case builtinSelectorKey:
@@ -228,7 +228,7 @@ func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.V
 				if err != nil {
 					return nil, err
 				}
-				resources = append(resources, k8s.Resource{
+				resources = append(resources, k8s.ResourceIdentifier{
 					Group:     base.Group,
 					Resource:  base.Resource,
 					Name:      name,
@@ -241,7 +241,7 @@ func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.V
 					return nil, err
 				}
 				for _, name := range names {
-					resources = append(resources, k8s.Resource{
+					resources = append(resources, k8s.ResourceIdentifier{
 						Group:     base.Group,
 						Resource:  base.Resource,
 						Name:      name,
@@ -261,7 +261,7 @@ func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.V
 				return nil, err
 			}
 			for _, item := range items {
-				resources = append(resources, k8s.Resource{
+				resources = append(resources, k8s.ResourceIdentifier{
 					Group:     selector.Group,
 					Resource:  selector.Resource,
 					Name:      item.GetName(),
@@ -273,7 +273,7 @@ func (r *resourceTopology) getResourcesWithSelector(ctx context.Context, v cue.V
 	return resources, nil
 }
 
-func (r *resourceTopology) handleBuiltInRules(ctx context.Context, typ string, v cue.Value, resource k8s.Resource) ([]k8s.Resource, error) {
+func (r *engine) handleBuiltInRules(ctx context.Context, typ string, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
 	switch strings.ToLower(typ) {
 	case "service":
 		return r.handleBuiltInRulesForService(ctx, v, resource)
@@ -282,10 +282,10 @@ func (r *resourceTopology) handleBuiltInRules(ctx context.Context, typ string, v
 	}
 }
 
-func (r *resourceTopology) getGroupResourceFromSubs(sub SubResource, group, resource string) []k8s.Resource {
-	result := make([]k8s.Resource, 0)
-	if sub.Resource.Group == group && sub.Resource.Resource == resource {
-		result = append(result, sub.Resource)
+func (r *engine) getGroupResourceFromSubs(sub SubResource, group, resource string) []k8s.ResourceIdentifier {
+	result := make([]k8s.ResourceIdentifier, 0)
+	if sub.ResourceIdentifier.Group == group && sub.ResourceIdentifier.Resource == resource {
+		result = append(result, sub.ResourceIdentifier)
 	}
 	for _, child := range sub.Children {
 		result = append(result, r.getGroupResourceFromSubs(child, group, resource)...)
@@ -293,32 +293,32 @@ func (r *resourceTopology) getGroupResourceFromSubs(sub SubResource, group, reso
 	return result
 }
 
-func (r *resourceTopology) handleBuiltInRulesForService(ctx context.Context, v cue.Value, resource k8s.Resource) ([]k8s.Resource, error) {
+func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
 	subs, err := r.getSubResources(ctx, v, resource)
 	if err != nil {
 		return nil, err
 	}
-	pods := make([]k8s.Resource, 0)
+	pods := make([]k8s.ResourceIdentifier, 0)
 	for _, sub := range subs {
-		pods = append(pods, r.getGroupResourceFromSubs(sub, "", "Pod")...)
+		pods = append(pods, r.getGroupResourceFromSubs(sub, "", "pod")...)
 	}
 	// get service endpoints and compare with pods
 	es := &discoveryv1.EndpointSliceList{}
 	if err = singleton.KubeClient.Get().List(ctx, es, client.InNamespace(resource.Namespace)); err != nil {
 		return nil, err
 	}
-	service := []k8s.Resource{}
+	service := []k8s.ResourceIdentifier{}
 	for _, e := range es.Items {
 		for _, s := range e.Endpoints {
-			if slices.Contains(pods, k8s.Resource{
+			if slices.Contains(pods, k8s.ResourceIdentifier{
 				Name:      s.TargetRef.Name,
 				Namespace: s.TargetRef.Namespace,
 				Group:     "",
-				Resource:  s.TargetRef.Kind,
+				Resource:  strings.ToLower(s.TargetRef.Kind),
 			}) {
-				service = append(service, k8s.Resource{
+				service = append(service, k8s.ResourceIdentifier{
 					Group:     "",
-					Resource:  "Service",
+					Resource:  "service",
 					Name:      e.OwnerReferences[0].Name,
 					Namespace: resource.Namespace,
 				})
@@ -328,9 +328,9 @@ func (r *resourceTopology) handleBuiltInRulesForService(ctx context.Context, v c
 	return service, nil
 }
 
-func listResources(ctx context.Context, selector *ResourceSelector, relation k8s.Resource) ([]unstructured.Unstructured, error) {
+func listResources(ctx context.Context, selector *ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
 	cli := singleton.KubeClient.Get()
-	resource := k8s.Resource{
+	resource := k8s.ResourceIdentifier{
 		Group:    selector.Group,
 		Resource: selector.Resource,
 	}
@@ -338,7 +338,7 @@ func listResources(ctx context.Context, selector *ResourceSelector, relation k8s
 	var annos map[string]string
 	var owner bool
 	switch selector.SelectorKey {
-	case nameSelectorKey:
+	case namespaceSelectorKey:
 		if ns, err := selector.SelectorValue.String(); err == nil {
 			listOpts = append(listOpts, client.InNamespace(ns))
 		}
@@ -355,9 +355,9 @@ func listResources(ctx context.Context, selector *ResourceSelector, relation k8s
 			listOpts = append(listOpts, client.InNamespace(relation.Namespace))
 		}
 	default:
-		return nil, errors.Errorf("unknown selector [%s] for list resources", selector.SelectorKey)
+		return nil, fmt.Errorf("unknown selector [%s] for list resources", selector.SelectorKey)
 	}
-	gvk, err := k8s.GetGVKFromResource(ctx, cli, resource)
+	gvk, err := k8s.GetGVKFromResource(ctx, resource)
 	if err != nil {
 		return nil, err
 	}
@@ -379,7 +379,7 @@ func listResources(ctx context.Context, selector *ResourceSelector, relation k8s
 		filtered := make([]unstructured.Unstructured, 0)
 		for _, un := range list.Items {
 			for _, ref := range un.GetOwnerReferences() {
-				if ref.Name == relation.Name && ref.Kind == relation.Resource {
+				if ref.Name == relation.Name && strings.ToLower(ref.Kind) == strings.ToLower(relation.Resource) {
 					filtered = append(filtered, un)
 				}
 			}

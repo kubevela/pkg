@@ -1,3 +1,19 @@
+/*
+Copyright 2023 The KubeVela Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package topology
 
 import (
@@ -73,39 +89,39 @@ func TestGetSubResources(t *testing.T) {
 
 	// Test Cases
 	testCases := []struct {
-		resource    k8s.Resource
-		rt          *resourceTopology
+		resource    k8s.ResourceIdentifier
+		rt          *engine
 		expected    []SubResource
 		expectedErr string
 	}{
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 }]
 `,
 			},
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment"
+	resource: "deployment"
 	subResources: true
 }]
 `,
@@ -113,30 +129,30 @@ rules: [{
 			expectedErr: "subResources should be a list",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	subResources: [{
 		group: "apps",
-		resource: "StatefulSet",
+		resource: "statefulSet",
 		selector: {
 			ownerReference: true,
 		},
 	}],
 }, {
 	group: "apps",
-	resource: "StatefulSet",
+	resource: "statefulSet",
 	subResources: [{
 		group: "",
-		resource: "Pod",
+		resource: "pod",
 		selector: {
 			ownerReference: true,
 		},
@@ -146,17 +162,17 @@ rules: [{
 			},
 			expected: []SubResource{
 				{
-					Resource: k8s.Resource{
+					ResourceIdentifier: k8s.ResourceIdentifier{
 						Group:     "apps",
-						Resource:  "StatefulSet",
+						Resource:  "statefulSet",
 						Name:      "test-stateful",
 						Namespace: "default",
 					},
 					Children: []SubResource{
 						{
-							Resource: k8s.Resource{
+							ResourceIdentifier: k8s.ResourceIdentifier{
 								Group:     "",
-								Resource:  "Pod",
+								Resource:  "pod",
 								Name:      "test-pod",
 								Namespace: "default",
 							},
@@ -316,44 +332,44 @@ func TestGetResourcePeers(t *testing.T) {
 
 	// Test Cases
 	testCases := []struct {
-		resource    k8s.Resource
-		rt          *resourceTopology
-		expected    []k8s.Resource
+		resource    k8s.ResourceIdentifier
+		rt          *engine
+		expected    []k8s.ResourceIdentifier
 		expectedErr string
 	}{
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "not-found",
 				Namespace: "default",
 			},
 			expectedErr: "not found",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "invalid",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
 			expectedErr: "no matches for invalid",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	peerResources: [{
 		group: "core",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			invalid: true
 		},
@@ -364,33 +380,33 @@ rules: [{
 			expectedErr: "unknown selector",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment"
+	resource: "deployment"
 }]
 `,
 			},
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment"
+	resource: "deployment"
 	peerResources: true
 }]
 `,
@@ -398,13 +414,13 @@ rules: [{
 			expectedErr: "peerResources should be a list",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: true
 `,
@@ -412,20 +428,20 @@ rules: true
 			expectedErr: "rules should be a list",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	peerResources: [{
 		group: "core",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			builtin: "invalid"
 		},
@@ -436,20 +452,20 @@ rules: [{
 			expectedErr: "unsupported built-in rule",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	peerResources: [{
 		group: "core",
-		resource: "ConfigMap",
+		resource: "configMap",
 	}],
 }]
 `,
@@ -457,13 +473,13 @@ rules: [{
 			expectedErr: "selector is required",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: invalid: _|_
 `,
@@ -471,13 +487,13 @@ rules: invalid: _|_
 			expectedErr: "explicit error",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 invalid: "no-rule"
 `,
@@ -485,61 +501,61 @@ invalid: "no-rule"
 			expectedErr: "no rules found",
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	subResources: [{
 		group: "apps",
-		resource: "StatefulSet",
+		resource: "statefulSet",
 		selector: {
 			ownerReference: true,
 		},
 	}],
 	peerResources: [{
 		group: "",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			name: context.data.metadata.name,
 		},
 	}, {
 		group: "",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			namespace: "cm",
 		},
 	}, {
 		group: "",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			annotations: "anno": "value",
 		},
 	},  {
 		group: "",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			labels: "label": "value",
 		},
 	}, {
 		group: "",
-		resource: "Service",
+		resource: "service",
 		selector: {
 			builtin: "service"
 		}
 	}],
 }, {
 	group: "apps",
-	resource: "StatefulSet",
+	resource: "statefulSet",
 	subResources: [{
 		group: "",
-		resource: "Pod",
+		resource: "pod",
 		selector: {
 			ownerReference: true,
 		},
@@ -547,54 +563,54 @@ rules: [{
 }]
 `,
 			},
-			expected: []k8s.Resource{
+			expected: []k8s.ResourceIdentifier{
 				{
 					Group:     "",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "test-deploy",
 					Namespace: "default",
 				},
 				{
 					Group:     "",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "cm1",
 					Namespace: "cm",
 				},
 				{
 					Group:     "",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "cm2",
 					Namespace: "default",
 				},
 				{
 					Group:     "",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "cm3",
 					Namespace: "default",
 				},
 				{
 					Group:     "",
-					Resource:  "Service",
+					Resource:  "service",
 					Name:      "test-svc",
 					Namespace: "default",
 				},
 			},
 		},
 		{
-			resource: k8s.Resource{
+			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
-				Resource:  "Deployment",
+				Resource:  "deployment",
 				Name:      "test-deploy",
 				Namespace: "default",
 			},
-			rt: &resourceTopology{
+			rt: &engine{
 				ruleTemplate: `
 rules: [{
 	group: "apps",
-	resource: "Deployment",
+	resource: "deployment",
 	peerResources: [{
 		group: "core",
-		resource: "ConfigMap",
+		resource: "configMap",
 		selector: {
 			name: [
 				for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
@@ -606,16 +622,16 @@ rules: [{
 }]
 `,
 			},
-			expected: []k8s.Resource{
+			expected: []k8s.ResourceIdentifier{
 				{
 					Group:     "core",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "cm1",
 					Namespace: "default",
 				},
 				{
 					Group:     "core",
-					Resource:  "ConfigMap",
+					Resource:  "configMap",
 					Name:      "cm2",
 					Namespace: "default",
 				},
