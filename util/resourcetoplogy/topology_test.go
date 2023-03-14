@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
+	"github.com/kubevela/pkg/cue/cuex"
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/singleton"
 )
@@ -83,6 +84,8 @@ func TestGetSubResources(t *testing.T) {
 		},
 	).WithRESTMapper(mapper).Build()
 	singleton.KubeClient.Set(cli)
+	singleton.RESTMapper.Set(mapper)
+	cuex.EnableExternalPackageForDefaultCompiler = false
 
 	// test new
 	_ = New("")
@@ -329,6 +332,8 @@ func TestGetResourcePeers(t *testing.T) {
 		},
 	).WithRESTMapper(mapper).Build()
 	singleton.KubeClient.Set(cli)
+	singleton.RESTMapper.Set(mapper)
+	cuex.EnableExternalPackageForDefaultCompiler = false
 
 	// Test Cases
 	testCases := []struct {

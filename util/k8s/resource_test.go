@@ -37,6 +37,7 @@ func TestGetGVKFromResource(t *testing.T) {
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "", Kind: "Namespace"}, meta.RESTScopeRoot)
 	cli := fake.NewClientBuilder().WithRESTMapper(mapper).Build()
 	singleton.KubeClient.Set(cli)
+	singleton.RESTMapper.Set(mapper)
 	ctx := context.Background()
 	testcases := map[string]struct {
 		resource    k8s.ResourceIdentifier
@@ -112,6 +113,7 @@ func TestGetUnstructuredFromResource(t *testing.T) {
 		},
 	).WithRESTMapper(mapper).Build()
 	singleton.KubeClient.Set(cli)
+	singleton.RESTMapper.Set(mapper)
 	ctx := context.Background()
 	testcases := map[string]struct {
 		resource    k8s.ResourceIdentifier
