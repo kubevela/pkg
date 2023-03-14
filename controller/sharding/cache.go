@@ -25,12 +25,16 @@ import (
 
 // BuildCache add shard-id label selector for given typed object
 func BuildCache(scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	opts := cache.Options{
-		Scheme:            scheme,
-		SelectorsByObject: map[client.Object]cache.ObjectSelector{},
-	}
+	return BuildCacheWithOptions(cache.Options{Scheme: scheme}, shardingObjects...)
+}
+
+// BuildCacheWithOptions add shard-id label selector to sharding objects with options
+func BuildCacheWithOptions(opts cache.Options, shardingObjects ...client.Object) cache.NewCacheFunc {
 	if EnableSharding {
 		ls := labels.SelectorFromSet(map[string]string{LabelKubeVelaScheduledShardID: ShardID})
+		if opts.SelectorsByObject == nil {
+			opts.SelectorsByObject = map[client.Object]cache.ObjectSelector{}
+		}
 		for _, obj := range shardingObjects {
 			opts.SelectorsByObject[obj] = cache.ObjectSelector{Label: ls}
 		}
