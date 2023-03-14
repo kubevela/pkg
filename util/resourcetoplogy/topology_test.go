@@ -146,7 +146,8 @@ rules: [{
 	subResources: [{
 		group: "apps",
 		resource: "statefulSet",
-		selector: {
+		selectors: {
+			namespace: context.data.metadata.namespace,
 			ownerReference: true,
 		},
 	}],
@@ -156,7 +157,8 @@ rules: [{
 	subResources: [{
 		group: "",
 		resource: "pod",
-		selector: {
+		selectors: {
+			namespace: context.data.metadata.namespace,
 			ownerReference: true,
 		},
 	}],
@@ -319,6 +321,9 @@ func TestGetResourcePeers(t *testing.T) {
 				Annotations: map[string]string{
 					"anno": "value",
 				},
+				Labels: map[string]string{
+					"label": "value2",
+				},
 			},
 		},
 		&corev1.ConfigMap{
@@ -375,14 +380,14 @@ rules: [{
 	peerResources: [{
 		group: "core",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			invalid: true
 		},
 	}],
 }]
 `,
 			},
-			expectedErr: "unknown selector",
+			expectedErr: "unsupported selector",
 		},
 		{
 			resource: k8s.ResourceIdentifier{
@@ -447,7 +452,7 @@ rules: [{
 	peerResources: [{
 		group: "core",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			builtin: "invalid"
 		},
 	}],
@@ -475,7 +480,7 @@ rules: [{
 }]
 `,
 			},
-			expectedErr: "selector is required",
+			expectedErr: "selectors are required",
 		},
 		{
 			resource: k8s.ResourceIdentifier{
@@ -520,38 +525,39 @@ rules: [{
 	subResources: [{
 		group: "apps",
 		resource: "statefulSet",
-		selector: {
+		selectors: {
 			ownerReference: true,
 		},
 	}],
 	peerResources: [{
 		group: "",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			name: context.data.metadata.name,
 		},
 	}, {
 		group: "",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			namespace: "cm",
 		},
 	}, {
 		group: "",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			annotations: "anno": "value",
+			labels: "label": "value2",
 		},
 	},  {
 		group: "",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			labels: "label": "value",
 		},
 	}, {
 		group: "",
 		resource: "service",
-		selector: {
+		selectors: {
 			builtin: "service"
 		}
 	}],
@@ -561,7 +567,7 @@ rules: [{
 	subResources: [{
 		group: "",
 		resource: "pod",
-		selector: {
+		selectors: {
 			ownerReference: true,
 		},
 	}],
@@ -616,7 +622,7 @@ rules: [{
 	peerResources: [{
 		group: "core",
 		resource: "configMap",
-		selector: {
+		selectors: {
 			name: [
 				for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
 					v.configMap.name

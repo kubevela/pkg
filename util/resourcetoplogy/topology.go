@@ -42,10 +42,18 @@ type SubResource struct {
 
 // ResourceSelector .
 type ResourceSelector struct {
-	Group         string    `json:"group"`
-	Resource      string    `json:"resource"`
-	SelectorKey   string    `json:"selectorKey"`
-	SelectorValue cue.Value `json:"selectorValue"`
+	group     string
+	resource  string
+	namespace string
+	name      string
+	builtin   string
+	filters   filterSelector
+}
+
+type filterSelector struct {
+	annotations    map[string]string
+	listOptions    []client.ListOption
+	ownerReference bool
 }
 
 type engine struct {
@@ -63,7 +71,7 @@ const (
 	rulesKey         = "rules"
 	subResourcesKey  = "subResources"
 	peerResourcesKey = "peerResources"
-	selectorKey      = "selector"
+	selectorsKey     = "selectors"
 
 	nameSelectorKey           = "name"
 	namespaceSelectorKey      = "namespace"
@@ -199,75 +207,95 @@ func (r *engine) getPeerResources(ctx context.Context, rule cue.Value, resource 
 }
 
 func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
-	base := &k8s.ResourceIdentifier{}
-	if err := v.Decode(base); err != nil {
+	base := k8s.ResourceIdentifier{}
+	if err := v.Decode(&base); err != nil {
 		return nil, err
 	}
-	selVal := v.LookupPath(cue.ParsePath(selectorKey))
+	selVal := v.LookupPath(cue.ParsePath(selectorsKey))
 	if !selVal.Exists() {
-		return nil, fmt.Errorf("selector is required")
+		return nil, fmt.Errorf("selectors are required")
 	}
-	fields, err := selVal.Fields()
+	iter, err := selVal.Fields()
 	if err != nil {
 		return nil, err
 	}
 	resources := make([]k8s.ResourceIdentifier, 0)
-	for fields.Next() {
-		switch fields.Label() {
+	selector := ResourceSelector{
+		group:     base.Group,
+		resource:  base.Resource,
+		namespace: resource.Namespace,
+	}
+	names := make([]string, 0)
+	for iter.Next() {
+		switch iter.Label() {
 		case builtinSelectorKey:
-			typ, err := fields.Value().String()
+			typ, err := iter.Value().String()
 			if err != nil {
 				return nil, err
 			}
 			return r.handleBuiltInRules(ctx, typ, v, resource)
 		case nameSelectorKey:
-			nameVal := fields.Value()
+			nameVal := iter.Value()
 			switch nameVal.Kind() {
 			case cue.StringKind:
 				name, err := nameVal.String()
 				if err != nil {
 					return nil, err
 				}
-				resources = append(resources, k8s.ResourceIdentifier{
-					Group:     base.Group,
-					Resource:  base.Resource,
-					Name:      name,
-					Namespace: resource.Namespace,
-				})
+				names = append(names, name)
 			default:
-				names := make([]string, 0)
 				err := nameVal.Decode(&names)
 				if err != nil {
 					return nil, err
 				}
-				for _, name := range names {
-					resources = append(resources, k8s.ResourceIdentifier{
-						Group:     base.Group,
-						Resource:  base.Resource,
-						Name:      name,
-						Namespace: resource.Namespace,
-					})
-				}
 			}
-		default:
-			selector := &ResourceSelector{
-				Group:         base.Group,
-				Resource:      base.Resource,
-				SelectorKey:   fields.Label(),
-				SelectorValue: fields.Value(),
-			}
-			items, err := listResources(ctx, selector, resource)
+		case namespaceSelectorKey:
+			ns, err := iter.Value().String()
 			if err != nil {
 				return nil, err
 			}
-			for _, item := range items {
-				resources = append(resources, k8s.ResourceIdentifier{
-					Group:     selector.Group,
-					Resource:  selector.Resource,
-					Name:      item.GetName(),
-					Namespace: item.GetNamespace(),
-				})
+			selector.namespace = ns
+			selector.filters.listOptions = append(selector.filters.listOptions, client.InNamespace(ns))
+		case labelsSelectorKey:
+			labels := make(map[string]string)
+			if err := iter.Value().Decode(&labels); err == nil {
+				selector.filters.listOptions = append(selector.filters.listOptions, client.MatchingLabels(labels))
 			}
+		case annotationsSelectorKey:
+			_ = iter.Value().Decode(&selector.filters.annotations)
+		case ownerReferenceSelectorKey:
+			if b, err := iter.Value().Bool(); err == nil {
+				selector.filters.ownerReference = b
+			}
+		default:
+			return nil, fmt.Errorf("unsupported selector %s", iter.Label())
+		}
+	}
+
+	switch {
+	case len(names) > 0:
+		for _, name := range names {
+			resources = append(resources, k8s.ResourceIdentifier{
+				Group:     selector.group,
+				Resource:  selector.resource,
+				Namespace: selector.namespace,
+				Name:      name,
+			})
+		}
+	case selector.builtin != "":
+		return r.handleBuiltInRules(ctx, selector.builtin, v, resource)
+	default:
+		result, err := listResources(ctx, selector, resource)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range result {
+			resources = append(resources, k8s.ResourceIdentifier{
+				Group:     selector.group,
+				Resource:  selector.resource,
+				Namespace: item.GetNamespace(),
+				Name:      item.GetName(),
+			})
 		}
 	}
 	return resources, nil
@@ -328,64 +356,41 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 	return service, nil
 }
 
-func listResources(ctx context.Context, selector *ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
+func listResources(ctx context.Context, selector ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
 	cli := singleton.KubeClient.Get()
-	resource := k8s.ResourceIdentifier{
-		Group:    selector.Group,
-		Resource: selector.Resource,
-	}
-	listOpts := make([]client.ListOption, 0)
-	var annos map[string]string
-	var owner bool
-	switch selector.SelectorKey {
-	case namespaceSelectorKey:
-		if ns, err := selector.SelectorValue.String(); err == nil {
-			listOpts = append(listOpts, client.InNamespace(ns))
-		}
-	case labelsSelectorKey:
-		labels := make(map[string]string)
-		if err := selector.SelectorValue.Decode(&labels); err == nil {
-			listOpts = append(listOpts, client.MatchingLabels(labels))
-		}
-	case annotationsSelectorKey:
-		_ = selector.SelectorValue.Decode(&annos)
-	case ownerReferenceSelectorKey:
-		if b, err := selector.SelectorValue.Bool(); err == nil {
-			owner = b
-			listOpts = append(listOpts, client.InNamespace(relation.Namespace))
-		}
-	default:
-		return nil, fmt.Errorf("unknown selector [%s] for list resources", selector.SelectorKey)
-	}
-	gvk, err := k8s.GetGVKFromResource(ctx, resource)
+	gvk, err := k8s.GetGVKFromResource(ctx, k8s.ResourceIdentifier{
+		Group:    selector.group,
+		Resource: selector.resource,
+	})
 	if err != nil {
 		return nil, err
 	}
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(gvk)
-	if err := cli.List(ctx, list, listOpts...); err != nil {
+	if err := cli.List(ctx, list, selector.filters.listOptions...); err != nil {
 		return nil, err
 	}
-	switch {
-	case len(annos) > 0:
-		filtered := make([]unstructured.Unstructured, 0)
-		for _, un := range list.Items {
-			if reflect.DeepEqual(un.GetAnnotations(), annos) {
-				filtered = append(filtered, un)
+	itemMap := make(map[string]unstructured.Unstructured)
+	for _, un := range list.Items {
+		itemMap[fmt.Sprintf("%s/%s/%s", un.GetKind(), un.GetNamespace(), un.GetName())] = un
+	}
+	for _, un := range list.Items {
+		if len(selector.filters.annotations) > 0 {
+			if !reflect.DeepEqual(un.GetAnnotations(), selector.filters.annotations) {
+				delete(itemMap, fmt.Sprintf("%s/%s/%s", un.GetKind(), un.GetNamespace(), un.GetName()))
 			}
 		}
-		return filtered, nil
-	case owner:
-		filtered := make([]unstructured.Unstructured, 0)
-		for _, un := range list.Items {
+		if selector.filters.ownerReference {
 			for _, ref := range un.GetOwnerReferences() {
-				if ref.Name == relation.Name && strings.ToLower(ref.Kind) == strings.ToLower(relation.Resource) {
-					filtered = append(filtered, un)
+				if ref.Name != relation.Name || strings.ToLower(ref.Kind) != strings.ToLower(relation.Resource) {
+					delete(itemMap, fmt.Sprintf("%s/%s/%s", un.GetKind(), un.GetNamespace(), un.GetName()))
 				}
 			}
 		}
-		return filtered, nil
-	default:
-		return list.Items, nil
 	}
+	filtered := make([]unstructured.Unstructured, 0)
+	for _, un := range itemMap {
+		filtered = append(filtered, un)
+	}
+	return filtered, nil
 }
