@@ -38,23 +38,22 @@ func TestGetGVKFromResource(t *testing.T) {
 	cli := fake.NewClientBuilder().WithRESTMapper(mapper).Build()
 	singleton.KubeClient.Set(cli)
 	singleton.RESTMapper.Set(mapper)
-	ctx := context.Background()
 	testcases := map[string]struct {
 		resource    k8s.ResourceIdentifier
 		expectedErr string
 	}{
 		"valid": {
-			resource: k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment"},
+			resource: k8s.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment"},
 		},
 		"invalid": {
-			resource:    k8s.ResourceIdentifier{Group: "invalid", Resource: "Deployment"},
-			expectedErr: "no matches for invalid",
+			resource:    k8s.ResourceIdentifier{APIVersion: "a/b/c", Kind: "Deployment"},
+			expectedErr: "unexpected GroupVersion string",
 		},
 	}
 	for name, tc := range testcases {
 		t.Run(name, func(t *testing.T) {
 			r := require.New(t)
-			_, err := k8s.GetGVKFromResource(ctx, tc.resource)
+			_, err := k8s.GetGVKFromResource(tc.resource)
 			if tc.expectedErr != "" {
 				r.Contains(err.Error(), tc.expectedErr)
 				return
@@ -120,15 +119,19 @@ func TestGetUnstructuredFromResource(t *testing.T) {
 		expectedErr string
 	}{
 		"valid": {
-			resource: k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment", Name: "test-deploy", Namespace: "default"},
+			resource: k8s.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment", Name: "test-deploy", Namespace: "default"},
 		},
 		"not-found": {
-			resource:    k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment", Name: "not-found", Namespace: "default"},
+			resource:    k8s.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment", Name: "not-found", Namespace: "default"},
 			expectedErr: "not found",
 		},
 		"invalid": {
-			resource:    k8s.ResourceIdentifier{Group: "invalid", Resource: "Deployment"},
-			expectedErr: "no matches for invalid",
+			resource:    k8s.ResourceIdentifier{APIVersion: "invalid/v1", Kind: "Deployment"},
+			expectedErr: "no matches for kind",
+		},
+		"invalid-apiversion": {
+			resource:    k8s.ResourceIdentifier{APIVersion: "a/b/c", Kind: "Deployment"},
+			expectedErr: "unexpected GroupVersion string",
 		},
 	}
 	for name, tc := range testcases {
