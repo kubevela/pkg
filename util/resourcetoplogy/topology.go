@@ -101,6 +101,9 @@ func (r *engine) GetSubResources(ctx context.Context, resource k8s.ResourceIdent
 	if err != nil {
 		return nil, err
 	}
+	if v.Err() != nil {
+		return nil, v.Err()
+	}
 	return r.getSubResources(ctx, v, resource)
 }
 
@@ -282,8 +285,6 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 				Name:      name,
 			})
 		}
-	case selector.builtin != "":
-		return r.handleBuiltInRules(ctx, selector.builtin, v, resource)
 	default:
 		result, err := listResources(ctx, selector, resource)
 		if err != nil {

@@ -51,6 +51,12 @@ func TestGetSubResources(t *testing.T) {
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, meta.RESTScopeNamespace)
 	ctx := context.Background()
+	defaultIdentifier := k8s.ResourceIdentifier{
+		Group:     "apps",
+		Resource:  "deployment",
+		Name:      "test-deploy",
+		Namespace: "default",
+	}
 	cli := fake.NewClientBuilder().WithObjects(
 		&appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
@@ -101,9 +107,22 @@ func TestGetSubResources(t *testing.T) {
 			resource: k8s.ResourceIdentifier{
 				Group:     "apps",
 				Resource:  "deployment",
-				Name:      "test-deploy",
+				Name:      "not-found",
 				Namespace: "default",
 			},
+			expectedErr: "not found",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+import "invalid"
+`,
+			},
+			expectedErr: "undefined",
+		},
+		{
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -114,12 +133,55 @@ rules: [{
 			},
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	subResources: [{
+		group: "invalid"
+		resource: "statefulSet",
+		selectors: ownerReference: true
+	}]
+}]
+`,
 			},
+			expectedErr: "no matches for invalid",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	subResources: [{
+		group: "apps",
+		resource: "statefulSet",
+		selectors: {
+			namespace: context.data.metadata.namespace,
+			ownerReference: true,
+		},
+	}],
+}, {
+	group: "apps",
+	resource: "statefulSet",
+	subResources: [{
+		group: "invalid",
+		resource: "pod",
+		selectors: {
+			namespace: context.data.metadata.namespace,
+			ownerReference: true,
+		},
+	}],
+}]
+`,
+			},
+			expectedErr: "no matches for invalid",
+		},
+		{
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -132,12 +194,7 @@ rules: [{
 			expectedErr: "subResources should be a list",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -308,6 +365,18 @@ func TestGetResourcePeers(t *testing.T) {
 				},
 			},
 		},
+		&corev1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod-not-match",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Name: "test-stateful-not-match",
+						Kind: "StatefulSet",
+					},
+				},
+			},
+		},
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "cm1",
@@ -328,6 +397,18 @@ func TestGetResourcePeers(t *testing.T) {
 		},
 		&corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
+				Name:      "cm2-not-match",
+				Namespace: "default",
+				Annotations: map[string]string{
+					"anno": "no-match",
+				},
+				Labels: map[string]string{
+					"label": "value2",
+				},
+			},
+		},
+		&corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
 				Name:      "cm3",
 				Namespace: "default",
 				Labels: map[string]string{
@@ -339,6 +420,13 @@ func TestGetResourcePeers(t *testing.T) {
 	singleton.KubeClient.Set(cli)
 	singleton.RESTMapper.Set(mapper)
 	cuex.EnableExternalPackageForDefaultCompiler = false
+
+	defaultIdentifier := k8s.ResourceIdentifier{
+		Group:     "apps",
+		Resource:  "deployment",
+		Name:      "test-deploy",
+		Namespace: "default",
+	}
 
 	// Test Cases
 	testCases := []struct {
@@ -366,12 +454,7 @@ func TestGetResourcePeers(t *testing.T) {
 			expectedErr: "no matches for invalid",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -390,12 +473,7 @@ rules: [{
 			expectedErr: "unsupported selector",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -406,12 +484,7 @@ rules: [{
 			},
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -424,12 +497,16 @@ rules: [{
 			expectedErr: "peerResources should be a list",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [1]
+`,
 			},
+			expectedErr: "cannot use value 1",
+		},
+		{
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: true
@@ -438,12 +515,7 @@ rules: true
 			expectedErr: "rules should be a list",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -462,12 +534,45 @@ rules: [{
 			expectedErr: "unsupported built-in rule",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	peerResources: [{
+		group: "core",
+		resource: "configMap",
+		selectors: {
+			namespace: 1
+		},
+	}],
+}]
+`,
 			},
+			expectedErr: "cannot use value 1 (type int) as string",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	peerResources: [{
+		group: "core",
+		resource: "configMap",
+		selectors: {
+			builtin: 1
+		},
+	}],
+}]
+`,
+			},
+			expectedErr: "cannot use value 1 (type int) as string",
+		},
+		{
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -483,12 +588,7 @@ rules: [{
 			expectedErr: "selectors are required",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: invalid: _|_
@@ -497,12 +597,7 @@ rules: invalid: _|_
 			expectedErr: "explicit error",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 invalid: "no-rule"
@@ -511,12 +606,7 @@ invalid: "no-rule"
 			expectedErr: "no rules found",
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
@@ -608,12 +698,7 @@ rules: [{
 			},
 		},
 		{
-			resource: k8s.ResourceIdentifier{
-				Group:     "apps",
-				Resource:  "deployment",
-				Name:      "test-deploy",
-				Namespace: "default",
-			},
+			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
