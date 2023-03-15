@@ -591,6 +591,53 @@ rules: [{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	peerResources: [{
+		group: "core",
+		resource: "configMap",
+		selectors: name: true
+	}],
+}]
+`,
+			},
+			expectedErr: "cannot use value true (type bool) as list",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	peerResources: [{
+		group: "core",
+		resource: "configMap",
+		selectors: true
+	}],
+}]
+`,
+			},
+			expectedErr: "cannot use value true (type bool) as struct",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	peerResources: [true],
+}]
+`,
+			},
+			expectedErr: "cannot use value true (type bool) as struct",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
 rules: invalid: _|_
 `,
 			},
@@ -604,6 +651,42 @@ invalid: "no-rule"
 `,
 			},
 			expectedErr: "no rules found",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	group: "apps",
+	resource: "deployment",
+	subResources: [{
+		group: "invalid",
+		resource: "statefulSet",
+		selectors: {
+			ownerReference: true,
+		},
+	}],
+	peerResources: [{
+		group: "",
+		resource: "service",
+		selectors: {
+			builtin: "service"
+		}
+	}],
+}, {
+	group: "apps",
+	resource: "statefulSet",
+	subResources: [{
+		group: "",
+		resource: "pod",
+		selectors: {
+			ownerReference: true,
+		},
+	}],
+}]
+`,
+			},
+			expectedErr: "no matches for invalid",
 		},
 		{
 			resource: defaultIdentifier,

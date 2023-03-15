@@ -241,10 +241,7 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 			nameVal := iter.Value()
 			switch nameVal.Kind() {
 			case cue.StringKind:
-				name, err := nameVal.String()
-				if err != nil {
-					return nil, err
-				}
+				name, _ := nameVal.String()
 				names = append(names, name)
 			default:
 				err := nameVal.Decode(&names)
