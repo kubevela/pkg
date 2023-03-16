@@ -29,6 +29,8 @@ import (
 
 // ResourceIdentifier .
 type ResourceIdentifier struct {
+	Group      string `json:"group"`
+	Resource   string `json:"resource"`
 	APIVersion string `json:"apiVersion"`
 	Kind       string `json:"kind"`
 	Name       string `json:"name"`
@@ -37,12 +39,23 @@ type ResourceIdentifier struct {
 
 // GetGVKFromResource returns the GVK for the provided resource identifier.
 func GetGVKFromResource(resource ResourceIdentifier) (schema.GroupVersionKind, error) {
-	gv, err := schema.ParseGroupVersion(resource.APIVersion)
+	if resource.APIVersion != "" && resource.Kind != "" {
+		gv, err := schema.ParseGroupVersion(resource.APIVersion)
+		if err != nil {
+			return schema.GroupVersionKind{}, err
+		}
+		gvk := gv.WithKind(resource.Kind)
+		return gvk, nil
+	}
+	mapper := singleton.RESTMapper.Get()
+	gvks, err := mapper.KindsFor(schema.GroupVersionResource{Group: resource.Group, Resource: resource.Resource})
 	if err != nil {
 		return schema.GroupVersionKind{}, err
 	}
-	gvk := gv.WithKind(resource.Kind)
-	return gvk, nil
+	if len(gvks) == 0 {
+		return schema.GroupVersionKind{}, fmt.Errorf("no kind found for resource %s", resource)
+	}
+	return gvks[0], nil
 }
 
 // GetUnstructuredFromResource returns an unstructured object for the provided resource identifier.

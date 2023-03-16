@@ -110,8 +110,8 @@ func (r *engine) GetSubResources(ctx context.Context, resource k8s.ResourceIdent
 func (r *engine) getSubResources(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]SubResource, error) {
 	subResources := make([]SubResource, 0)
 	rule, err := r.getRuleForResource(ctx, v, resource)
-	if err != nil {
-		return nil, nil
+	if err != nil && !strings.Contains(err.Error(), "no rules found") {
+		return nil, err
 	}
 	subs := rule.LookupPath(cue.ParsePath(subResourcesKey))
 	if !subs.Exists() {
@@ -140,8 +140,23 @@ func (r *engine) getSubResources(ctx context.Context, v cue.Value, resource k8s.
 	return subResources, nil
 }
 
+func (r *engine) getResourceIdentifierWithValue(v cue.Value) (*k8s.ResourceIdentifier, error) {
+	re := &k8s.ResourceIdentifier{}
+	if err := v.Decode(re); err != nil {
+		return nil, err
+	}
+	gvk, err := k8s.GetGVKFromResource(*re)
+	if err != nil {
+		return nil, err
+	}
+	apiVersion, kind := gvk.ToAPIVersionAndKind()
+	re.APIVersion = apiVersion
+	re.Kind = kind
+	return re, nil
+}
+
 func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) (cue.Value, error) {
-	if r.rules == nil {
+	if len(r.rules) == 0 {
 		r.rules = make(map[string]cue.Value)
 		v = v.LookupPath(cue.ParsePath(rulesKey))
 		if !v.Exists() {
@@ -152,8 +167,8 @@ func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k
 			return cue.Value{}, errors.Wrap(err, "rules should be a list")
 		}
 		for iter.Next() {
-			re := &k8s.ResourceIdentifier{}
-			if err := iter.Value().Decode(re); err != nil {
+			re, err := r.getResourceIdentifierWithValue(iter.Value())
+			if err != nil {
 				return cue.Value{}, err
 			}
 			r.rules[fmt.Sprintf("%s/%s", re.APIVersion, re.Kind)] = iter.Value()
@@ -162,7 +177,7 @@ func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k
 	if rule, ok := r.rules[fmt.Sprintf("%s/%s", resource.APIVersion, resource.Kind)]; ok {
 		return rule, nil
 	}
-	return cue.Value{}, fmt.Errorf("no rule found for resource %s/%s", resource.APIVersion, resource.Kind)
+	return cue.Value{}, fmt.Errorf("no rules found for resource %s/%s", resource.APIVersion, resource.Kind)
 }
 
 // GetPeerResources get peer resources of given resource
@@ -210,8 +225,8 @@ func (r *engine) getPeerResources(ctx context.Context, rule cue.Value, resource 
 }
 
 func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
-	base := k8s.ResourceIdentifier{}
-	if err := v.Decode(&base); err != nil {
+	base, err := r.getResourceIdentifierWithValue(v)
+	if err != nil {
 		return nil, err
 	}
 	selVal := v.LookupPath(cue.ParsePath(selectorsKey))
@@ -228,6 +243,7 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 		kind:       base.Kind,
 		namespace:  resource.Namespace,
 	}
+	selectByName := false
 	names := make([]string, 0)
 	for iter.Next() {
 		switch iter.Label() {
@@ -238,6 +254,7 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 			}
 			return r.handleBuiltInRules(ctx, typ, v, resource)
 		case nameSelectorKey:
+			selectByName = true
 			nameVal := iter.Value()
 			switch nameVal.Kind() {
 			case cue.StringKind:
@@ -266,6 +283,7 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 		case ownerReferenceSelectorKey:
 			if b, err := iter.Value().Bool(); err == nil {
 				selector.filters.ownerReference = b
+				selector.filters.listOptions = append(selector.filters.listOptions, client.InNamespace(resource.Namespace))
 			}
 		default:
 			return nil, fmt.Errorf("unsupported selector %s", iter.Label())
@@ -273,7 +291,7 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 	}
 
 	switch {
-	case len(names) > 0:
+	case selectByName:
 		for _, name := range names {
 			resources = append(resources, k8s.ResourceIdentifier{
 				APIVersion: selector.apiVersion,
@@ -336,6 +354,9 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 	service := []k8s.ResourceIdentifier{}
 	for _, e := range es.Items {
 		for _, s := range e.Endpoints {
+			if s.TargetRef == nil {
+				continue
+			}
 			if slices.Contains(pods, k8s.ResourceIdentifier{
 				Name:       s.TargetRef.Name,
 				Namespace:  s.TargetRef.Namespace,
@@ -356,6 +377,7 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 
 func listResources(ctx context.Context, selector ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
 	cli := singleton.KubeClient.Get()
+	fmt.Println("====selector", selector)
 	gvk, err := k8s.GetGVKFromResource(k8s.ResourceIdentifier{
 		APIVersion: selector.apiVersion,
 		Kind:       selector.kind,
@@ -380,7 +402,7 @@ func listResources(ctx context.Context, selector ResourceSelector, relation k8s.
 		}
 		if selector.filters.ownerReference {
 			for _, ref := range un.GetOwnerReferences() {
-				if reflect.DeepEqual(k8s.ResourceIdentifier{
+				if !reflect.DeepEqual(k8s.ResourceIdentifier{
 					APIVersion: ref.APIVersion,
 					Kind:       ref.Kind,
 					Name:       ref.Name,
