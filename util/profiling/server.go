@@ -14,34 +14,46 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package perf
+package profiling
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/pprof"
-	"time"
+	"runtime"
 
 	"k8s.io/klog/v2"
 )
 
-func StartProfilingServer(pprofAddr string, errChan chan error) {
-	// Start pprof server if enabled
+// NewProfilingHandler create a profiling handler
+func NewProfilingHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	pprofServer := http.Server{
-		Addr:              pprofAddr,
-		Handler:           mux,
-		ReadHeaderTimeout: 2 * time.Second,
+	mux.HandleFunc("/mem/stat", func(writer http.ResponseWriter, request *http.Request) {
+		var ms runtime.MemStats
+		runtime.ReadMemStats(&ms)
+		bs, _ := json.Marshal(ms)
+		_, _ = writer.Write(bs)
+	})
+	mux.HandleFunc("/gc", func(writer http.ResponseWriter, request *http.Request) {
+		runtime.GC()
+	})
+	return mux
+}
+
+// StartProfilingServer listen to the pprofAddr and export the profiling results
+// If the errChan is nil, this function will panic when the listening error occurred.
+func StartProfilingServer(errChan chan error) {
+	if Addr == "" {
+		return
 	}
-
-	klog.InfoS("Starting debug HTTP server", "addr", pprofServer.Addr)
-
-	if err := pprofServer.ListenAndServe(); err != nil {
-		klog.Error(err, "Failed to start debug HTTP server")
+	klog.Infof("start profiling server at %s", Addr)
+	if err := http.ListenAndServe(Addr, NewProfilingHandler()); err != nil {
+		klog.ErrorS(err, "failed to start debug HTTP server")
 		if errChan != nil {
 			errChan <- err
 		} else {
