@@ -23,6 +23,8 @@ import (
 	"runtime"
 
 	"k8s.io/klog/v2"
+
+	"github.com/kubevela/pkg/util/errhandler"
 )
 
 // NewProfilingHandler create a profiling handler
@@ -52,12 +54,6 @@ func StartProfilingServer(errChan chan error) {
 		return
 	}
 	klog.Infof("start profiling server at %s", Addr)
-	if err := http.ListenAndServe(Addr, NewProfilingHandler()); err != nil {
-		klog.ErrorS(err, "failed to start debug HTTP server")
-		if errChan != nil {
-			errChan <- err
-		} else {
-			panic(err)
-		}
-	}
+	err := http.ListenAndServe(Addr, NewProfilingHandler())
+	errhandler.NotifyOrPanic(errChan)(err)
 }
