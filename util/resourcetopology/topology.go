@@ -377,8 +377,8 @@ func (r *engine) handleBuiltInRulesForIngress(ctx context.Context, v cue.Value, 
 					Kind:       "Service",
 				}) {
 					ingress = append(ingress, k8s.ResourceIdentifier{
-						APIVersion: item.APIVersion,
-						Kind:       item.Kind,
+						APIVersion: "networking.k8s.io/v1",
+						Kind:       "Ingress",
 						Name:       item.Name,
 						Namespace:  item.Namespace,
 					})
