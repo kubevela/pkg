@@ -42,12 +42,12 @@ type SubResource struct {
 
 // ResourceSelector .
 type ResourceSelector struct {
-	apiVersion string
-	kind       string
-	namespace  string
-	name       string
-	builtin    string
-	filters    filterSelector
+	group     string
+	resource  string
+	namespace string
+	name      string
+	builtin   string
+	filters   filterSelector
 }
 
 type filterSelector struct {
@@ -156,13 +156,13 @@ func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k
 			if err := iter.Value().Decode(re); err != nil {
 				return cue.Value{}, err
 			}
-			r.rules[fmt.Sprintf("%s/%s", re.APIVersion, re.Kind)] = iter.Value()
+			r.rules[fmt.Sprintf("%s/%s", re.Group, re.Resource)] = iter.Value()
 		}
 	}
-	if rule, ok := r.rules[fmt.Sprintf("%s/%s", resource.APIVersion, resource.Kind)]; ok {
+	if rule, ok := r.rules[fmt.Sprintf("%s/%s", resource.Group, resource.Resource)]; ok {
 		return rule, nil
 	}
-	return cue.Value{}, fmt.Errorf("no rule found for resource %s/%s", resource.APIVersion, resource.Kind)
+	return cue.Value{}, fmt.Errorf("no rule found for resource %s/%s", resource.Group, resource.Resource)
 }
 
 // GetPeerResources get peer resources of given resource
@@ -224,9 +224,9 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 	}
 	resources := make([]k8s.ResourceIdentifier, 0)
 	selector := ResourceSelector{
-		apiVersion: base.APIVersion,
-		kind:       base.Kind,
-		namespace:  resource.Namespace,
+		group:     base.Group,
+		resource:  base.Resource,
+		namespace: resource.Namespace,
 	}
 	names := make([]string, 0)
 	for iter.Next() {
@@ -276,10 +276,10 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 	case len(names) > 0:
 		for _, name := range names {
 			resources = append(resources, k8s.ResourceIdentifier{
-				APIVersion: selector.apiVersion,
-				Kind:       selector.kind,
-				Namespace:  selector.namespace,
-				Name:       name,
+				Group:     selector.group,
+				Resource:  selector.resource,
+				Namespace: selector.namespace,
+				Name:      name,
 			})
 		}
 	default:
@@ -289,10 +289,10 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 		}
 		for _, item := range result {
 			resources = append(resources, k8s.ResourceIdentifier{
-				APIVersion: selector.apiVersion,
-				Kind:       selector.kind,
-				Namespace:  item.GetNamespace(),
-				Name:       item.GetName(),
+				Group:     selector.group,
+				Resource:  selector.resource,
+				Namespace: item.GetNamespace(),
+				Name:      item.GetName(),
 			})
 		}
 	}
@@ -308,13 +308,13 @@ func (r *engine) handleBuiltInRules(ctx context.Context, typ string, v cue.Value
 	}
 }
 
-func (r *engine) getMatchResourceFromSubs(sub SubResource, apiVersion, kind string) []k8s.ResourceIdentifier {
+func (r *engine) getGroupResourceFromSubs(sub SubResource, group, resource string) []k8s.ResourceIdentifier {
 	result := make([]k8s.ResourceIdentifier, 0)
-	if sub.ResourceIdentifier.APIVersion == apiVersion && sub.ResourceIdentifier.Kind == kind {
+	if sub.ResourceIdentifier.Group == group && sub.ResourceIdentifier.Resource == resource {
 		result = append(result, sub.ResourceIdentifier)
 	}
 	for _, child := range sub.Children {
-		result = append(result, r.getMatchResourceFromSubs(child, apiVersion, kind)...)
+		result = append(result, r.getGroupResourceFromSubs(child, group, resource)...)
 	}
 	return result
 }
@@ -326,7 +326,7 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 	}
 	pods := make([]k8s.ResourceIdentifier, 0)
 	for _, sub := range subs {
-		pods = append(pods, r.getMatchResourceFromSubs(sub, "v1", "Pod")...)
+		pods = append(pods, r.getGroupResourceFromSubs(sub, "", "pod")...)
 	}
 	// get service endpoints and compare with pods
 	es := &discoveryv1.EndpointSliceList{}
@@ -337,16 +337,16 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 	for _, e := range es.Items {
 		for _, s := range e.Endpoints {
 			if slices.Contains(pods, k8s.ResourceIdentifier{
-				Name:       s.TargetRef.Name,
-				Namespace:  s.TargetRef.Namespace,
-				APIVersion: "v1",
-				Kind:       "Pod",
+				Name:      s.TargetRef.Name,
+				Namespace: s.TargetRef.Namespace,
+				Group:     "",
+				Resource:  strings.ToLower(s.TargetRef.Kind),
 			}) {
 				service = append(service, k8s.ResourceIdentifier{
-					APIVersion: "v1",
-					Kind:       "Service",
-					Name:       e.OwnerReferences[0].Name,
-					Namespace:  resource.Namespace,
+					Group:     "",
+					Resource:  "service",
+					Name:      e.OwnerReferences[0].Name,
+					Namespace: resource.Namespace,
 				})
 			}
 		}
@@ -356,9 +356,9 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 
 func listResources(ctx context.Context, selector ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
 	cli := singleton.KubeClient.Get()
-	gvk, err := k8s.GetGVKFromResource(k8s.ResourceIdentifier{
-		APIVersion: selector.apiVersion,
-		Kind:       selector.kind,
+	gvk, err := k8s.GetGVKFromResource(ctx, k8s.ResourceIdentifier{
+		Group:    selector.group,
+		Resource: selector.resource,
 	})
 	if err != nil {
 		return nil, err
@@ -380,12 +380,7 @@ func listResources(ctx context.Context, selector ResourceSelector, relation k8s.
 		}
 		if selector.filters.ownerReference {
 			for _, ref := range un.GetOwnerReferences() {
-				if reflect.DeepEqual(k8s.ResourceIdentifier{
-					APIVersion: ref.APIVersion,
-					Kind:       ref.Kind,
-					Name:       ref.Name,
-					Namespace:  un.GetNamespace(),
-				}, relation) {
+				if ref.Name != relation.Name || strings.ToLower(ref.Kind) != strings.ToLower(relation.Resource) {
 					delete(itemMap, fmt.Sprintf("%s/%s/%s", un.GetKind(), un.GetNamespace(), un.GetName()))
 				}
 			}

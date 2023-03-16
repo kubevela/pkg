@@ -52,10 +52,10 @@ func TestGetSubResources(t *testing.T) {
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, meta.RESTScopeNamespace)
 	ctx := context.Background()
 	defaultIdentifier := k8s.ResourceIdentifier{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       "test-deploy",
-		Namespace:  "default",
+		Group:     "apps",
+		Resource:  "deployment",
+		Name:      "test-deploy",
+		Namespace: "default",
 	}
 	cli := fake.NewClientBuilder().WithObjects(
 		&appsv1.Deployment{
@@ -105,10 +105,10 @@ func TestGetSubResources(t *testing.T) {
 	}{
 		{
 			resource: k8s.ResourceIdentifier{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       "not-found",
-				Namespace:  "default",
+				Group:     "apps",
+				Resource:  "deployment",
+				Name:      "not-found",
+				Namespace: "default",
 			},
 			expectedErr: "not found",
 		},
@@ -126,8 +126,8 @@ import "invalid"
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 }]
 `,
 			},
@@ -137,39 +137,39 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	subResources: [{
-		apiVersion: "a/b/c",
-		kind: "StatefulSet",
+		group: "invalid"
+		resource: "statefulSet",
 		selectors: ownerReference: true
 	}]
 }]
 `,
 			},
-			expectedErr: "unexpected",
+			expectedErr: "no matches for invalid",
 		},
 		{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	subResources: [{
-		apiVersion: "apps/v1",
-		kind: "StatefulSet",
+		group: "apps",
+		resource: "statefulSet",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
 		},
 	}],
 }, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	group: "apps",
+	resource: "statefulSet",
 	subResources: [{
-		apiVersion: "a/b/c",
-		kind: "Pod",
+		group: "invalid",
+		resource: "pod",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
@@ -178,15 +178,15 @@ rules: [{
 }]
 `,
 			},
-			expectedErr: "unexpected",
+			expectedErr: "no matches for invalid",
 		},
 		{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment"
 	subResources: true
 }]
 `,
@@ -198,22 +198,22 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	subResources: [{
-		apiVersion: "apps/v1",
-		kind: "StatefulSet",
+		group: "apps",
+		resource: "statefulSet",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
 		},
 	}],
 }, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	group: "apps",
+	resource: "statefulSet",
 	subResources: [{
-		apiVersion: "v1",
-		kind: "Pod",
+		group: "",
+		resource: "pod",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
@@ -225,18 +225,18 @@ rules: [{
 			expected: []SubResource{
 				{
 					ResourceIdentifier: k8s.ResourceIdentifier{
-						APIVersion: "apps/v1",
-						Kind:       "StatefulSet",
-						Name:       "test-stateful",
-						Namespace:  "default",
+						Group:     "apps",
+						Resource:  "statefulSet",
+						Name:      "test-stateful",
+						Namespace: "default",
 					},
 					Children: []SubResource{
 						{
 							ResourceIdentifier: k8s.ResourceIdentifier{
-								APIVersion: "v1",
-								Kind:       "Pod",
-								Name:       "test-pod",
-								Namespace:  "default",
+								Group:     "",
+								Resource:  "pod",
+								Name:      "test-pod",
+								Namespace: "default",
 							},
 						},
 					},
@@ -422,10 +422,10 @@ func TestGetResourcePeers(t *testing.T) {
 	cuex.EnableExternalPackageForDefaultCompiler = false
 
 	defaultIdentifier := k8s.ResourceIdentifier{
-		APIVersion: "apps/v1",
-		Kind:       "Deployment",
-		Name:       "test-deploy",
-		Namespace:  "default",
+		Group:     "apps",
+		Resource:  "deployment",
+		Name:      "test-deploy",
+		Namespace: "default",
 	}
 
 	// Test Cases
@@ -437,32 +437,32 @@ func TestGetResourcePeers(t *testing.T) {
 	}{
 		{
 			resource: k8s.ResourceIdentifier{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       "not-found",
-				Namespace:  "default",
+				Group:     "apps",
+				Resource:  "deployment",
+				Name:      "not-found",
+				Namespace: "default",
 			},
 			expectedErr: "not found",
 		},
 		{
 			resource: k8s.ResourceIdentifier{
-				APIVersion: "invalid",
-				Kind:       "Deployment",
-				Name:       "test-deploy",
-				Namespace:  "default",
+				Group:     "invalid",
+				Resource:  "deployment",
+				Name:      "test-deploy",
+				Namespace: "default",
 			},
-			expectedErr: "no matches for kind",
+			expectedErr: "no matches for invalid",
 		},
 		{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: {
 			invalid: true
 		},
@@ -477,8 +477,8 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment"
+	group: "apps",
+	resource: "deployment"
 }]
 `,
 			},
@@ -488,8 +488,8 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment"
+	group: "apps",
+	resource: "deployment"
 	peerResources: true
 }]
 `,
@@ -519,11 +519,11 @@ rules: true
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: {
 			builtin: "invalid"
 		},
@@ -538,11 +538,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: {
 			namespace: 1
 		},
@@ -557,11 +557,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: {
 			builtin: 1
 		},
@@ -576,11 +576,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 	}],
 }]
 `,
@@ -592,11 +592,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: name: true
 	}],
 }]
@@ -609,11 +609,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: true
 	}],
 }]
@@ -626,8 +626,8 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [true],
 }]
 `,
@@ -657,28 +657,28 @@ invalid: "no-rule"
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	subResources: [{
-		apiVersion: "a/b/c",
-		kind: "StatefulSet",
+		group: "invalid",
+		resource: "statefulSet",
 		selectors: {
 			ownerReference: true,
 		},
 	}],
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "Service",
+		group: "",
+		resource: "service",
 		selectors: {
 			builtin: "service"
 		}
 	}],
 }, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	group: "apps",
+	resource: "statefulSet",
 	subResources: [{
-		apiVersion: "v1",
-		kind: "Pod",
+		group: "",
+		resource: "pod",
 		selectors: {
 			ownerReference: true,
 		},
@@ -686,60 +686,60 @@ rules: [{
 }]
 `,
 			},
-			expectedErr: "unexpected",
+			expectedErr: "no matches for invalid",
 		},
 		{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	subResources: [{
-		apiVersion: "apps/v1",
-		kind: "StatefulSet",
+		group: "apps",
+		resource: "statefulSet",
 		selectors: {
 			ownerReference: true,
 		},
 	}],
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "",
+		resource: "configMap",
 		selectors: {
 			name: context.data.metadata.name,
 		},
 	}, {
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "",
+		resource: "configMap",
 		selectors: {
 			namespace: "cm",
 		},
 	}, {
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "",
+		resource: "configMap",
 		selectors: {
 			annotations: "anno": "value",
 			labels: "label": "value2",
 		},
 	},  {
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "",
+		resource: "configMap",
 		selectors: {
 			labels: "label": "value",
 		},
 	}, {
-		apiVersion: "v1",
-		kind: "Service",
+		group: "",
+		resource: "service",
 		selectors: {
 			builtin: "service"
 		}
 	}],
 }, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	group: "apps",
+	resource: "statefulSet",
 	subResources: [{
-		apiVersion: "v1",
-		kind: "Pod",
+		group: "",
+		resource: "pod",
 		selectors: {
 			ownerReference: true,
 		},
@@ -749,34 +749,34 @@ rules: [{
 			},
 			expected: []k8s.ResourceIdentifier{
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "test-deploy",
-					Namespace:  "default",
+					Group:     "",
+					Resource:  "configMap",
+					Name:      "test-deploy",
+					Namespace: "default",
 				},
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "cm1",
-					Namespace:  "cm",
+					Group:     "",
+					Resource:  "configMap",
+					Name:      "cm1",
+					Namespace: "cm",
 				},
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "cm2",
-					Namespace:  "default",
+					Group:     "",
+					Resource:  "configMap",
+					Name:      "cm2",
+					Namespace: "default",
 				},
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "cm3",
-					Namespace:  "default",
+					Group:     "",
+					Resource:  "configMap",
+					Name:      "cm3",
+					Namespace: "default",
 				},
 				{
-					APIVersion: "v1",
-					Kind:       "Service",
-					Name:       "test-svc",
-					Namespace:  "default",
+					Group:     "",
+					Resource:  "service",
+					Name:      "test-svc",
+					Namespace: "default",
 				},
 			},
 		},
@@ -785,11 +785,11 @@ rules: [{
 			rt: &engine{
 				ruleTemplate: `
 rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
+	group: "apps",
+	resource: "deployment",
 	peerResources: [{
-		apiVersion: "v1",
-		kind: "ConfigMap",
+		group: "core",
+		resource: "configMap",
 		selectors: {
 			name: [
 				for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
@@ -803,16 +803,16 @@ rules: [{
 			},
 			expected: []k8s.ResourceIdentifier{
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "cm1",
-					Namespace:  "default",
+					Group:     "core",
+					Resource:  "configMap",
+					Name:      "cm1",
+					Namespace: "default",
 				},
 				{
-					APIVersion: "v1",
-					Kind:       "ConfigMap",
-					Name:       "cm2",
-					Namespace:  "default",
+					Group:     "core",
+					Resource:  "configMap",
+					Name:      "cm2",
+					Namespace: "default",
 				},
 			},
 		},
