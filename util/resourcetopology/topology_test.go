@@ -25,6 +25,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -112,6 +113,7 @@ func TestGetSubResources(t *testing.T) {
 				Name:       "not-found",
 				Namespace:  "default",
 			},
+			rt:          &engine{},
 			expectedErr: "not found",
 		},
 		{
@@ -266,6 +268,7 @@ func TestGetResourcePeers(t *testing.T) {
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
+	mapper.Add(schema.GroupVersionKind{Group: "networking", Version: "v1", Kind: "Ingress"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Namespace"}, meta.RESTScopeRoot)
@@ -358,6 +361,81 @@ func TestGetResourcePeers(t *testing.T) {
 			Endpoints: []discoveryv1.Endpoint{
 				{
 					TargetRef: nil,
+				},
+			},
+		},
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress",
+				Namespace: "default",
+			},
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "networking.k8s.io/v1",
+				Kind:       "Ingress",
+			},
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
+					{
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Backend: networkingv1.IngressBackend{
+											Service: &networkingv1.IngressServiceBackend{
+												Name: "test-svc",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress-nil1",
+				Namespace: "default",
+			},
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "networking.k8s.io/v1",
+				Kind:       "Ingress",
+			},
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
+					{
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: &networkingv1.HTTPIngressRuleValue{
+								Paths: []networkingv1.HTTPIngressPath{
+									{
+										Backend: networkingv1.IngressBackend{
+											Service: nil,
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		&networkingv1.Ingress{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-ingress-nil2",
+				Namespace: "default",
+			},
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "networking.k8s.io/v1",
+				Kind:       "Ingress",
+			},
+			Spec: networkingv1.IngressSpec{
+				Rules: []networkingv1.IngressRule{
+					{
+						IngressRuleValue: networkingv1.IngressRuleValue{
+							HTTP: nil,
+						},
+					},
 				},
 			},
 		},
@@ -464,6 +542,7 @@ func TestGetResourcePeers(t *testing.T) {
 				Name:       "not-found",
 				Namespace:  "default",
 			},
+			rt:          &engine{},
 			expectedErr: "not found",
 		},
 		{
@@ -473,6 +552,7 @@ func TestGetResourcePeers(t *testing.T) {
 				Name:       "test-deploy",
 				Namespace:  "default",
 			},
+			rt:          &engine{},
 			expectedErr: "no matches for kind",
 		},
 		{
@@ -755,6 +835,12 @@ rules: [{
 		selectors: {
 			builtin: "service"
 		}
+	}, {
+		apiVersion: "networking.k8s.io/v1",
+		kind: "Ingress",
+		selectors: {
+			builtin: "ingress"
+		}
 	}],
 }, {
 	apiVersion: "apps/v1",
@@ -792,6 +878,67 @@ rules: [{
 					APIVersion: "v1",
 					Kind:       "ConfigMap",
 					Name:       "cm3",
+					Namespace:  "default",
+				},
+				{
+					APIVersion: "v1",
+					Kind:       "Service",
+					Name:       "test-svc",
+					Namespace:  "default",
+				},
+				{
+					APIVersion: "networking.k8s.io/v1",
+					Kind:       "Ingress",
+					Name:       "test-ingress",
+					Namespace:  "default",
+				},
+			},
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+rules: [{
+	apiVersion: "apps/v1",
+	kind: "Deployment",
+	subResources: [{
+		apiVersion: "apps/v1",
+		kind: "ReplicaSet",
+		selectors: {
+			ownerReference: true,
+		},
+	}],
+	peerResources: [ {
+		apiVersion: "networking.k8s.io/v1",
+		kind: "Ingress",
+		selectors: {
+			builtin: "ingress"
+		}
+	}, {
+		apiVersion: "v1",
+		kind: "Service",
+		selectors: {
+			builtin: "service"
+		}
+	}],
+}, {
+	apiVersion: "apps/v1",
+	kind: "ReplicaSet",
+	subResources: [{
+		apiVersion: "v1",
+		kind: "Pod",
+		selectors: {
+			ownerReference: true,
+		},
+	}],
+}]
+`,
+			},
+			expected: []k8s.ResourceIdentifier{
+				{
+					APIVersion: "networking.k8s.io/v1",
+					Kind:       "Ingress",
+					Name:       "test-ingress",
 					Namespace:  "default",
 				},
 				{

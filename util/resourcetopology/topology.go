@@ -25,6 +25,7 @@ import (
 	"cuelang.org/go/cue"
 	"github.com/pkg/errors"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -59,6 +60,7 @@ type filterSelector struct {
 type engine struct {
 	ruleTemplate string
 	rules        map[string]cue.Value
+	cache        map[string][]k8s.ResourceIdentifier
 }
 
 // Engine .
@@ -79,6 +81,9 @@ const (
 	annotationsSelectorKey    = "annotations"
 	labelsSelectorKey         = "labels"
 	ownerReferenceSelectorKey = "ownerReference"
+
+	builtinRuleService = "service"
+	builtinRuleIngress = "ingress"
 )
 
 // New .
@@ -91,6 +96,7 @@ func New(rules string) Engine {
 
 // GetSubResources get sub resources of given resource
 func (r *engine) GetSubResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]SubResource, error) {
+	r.cache = make(map[string][]k8s.ResourceIdentifier)
 	un, err := k8s.GetUnstructuredFromResource(ctx, resource)
 	if err != nil {
 		return nil, err
@@ -182,6 +188,7 @@ func (r *engine) getRuleForResource(ctx context.Context, v cue.Value, resource k
 
 // GetPeerResources get peer resources of given resource
 func (r *engine) GetPeerResources(ctx context.Context, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
+	r.cache = make(map[string][]k8s.ResourceIdentifier)
 	un, err := k8s.GetUnstructuredFromResource(ctx, resource)
 	if err != nil {
 		return nil, err
@@ -319,8 +326,10 @@ func (r *engine) getResourcesWithSelector(ctx context.Context, v cue.Value, reso
 
 func (r *engine) handleBuiltInRules(ctx context.Context, typ string, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
 	switch strings.ToLower(typ) {
-	case "service":
+	case builtinRuleService:
 		return r.handleBuiltInRulesForService(ctx, v, resource)
+	case builtinRuleIngress:
+		return r.handleBuiltInRulesForIngress(ctx, v, resource)
 	default:
 		return nil, fmt.Errorf("unsupported built-in rule %s", typ)
 	}
@@ -337,7 +346,53 @@ func (r *engine) getMatchResourceFromSubs(sub SubResource, apiVersion, kind stri
 	return result
 }
 
+func (r *engine) handleBuiltInRulesForIngress(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
+	var err error
+	services, ok := r.cache[builtinRuleService]
+	if !ok {
+		services, err = r.handleBuiltInRulesForService(ctx, v, resource)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// get service endpoints and compare with pods
+	ingressList := &networkingv1.IngressList{}
+	if err = singleton.KubeClient.Get().List(ctx, ingressList, client.InNamespace(resource.Namespace)); err != nil {
+		return nil, err
+	}
+	ingress := []k8s.ResourceIdentifier{}
+	for _, item := range ingressList.Items {
+		for _, rule := range item.Spec.Rules {
+			if rule.HTTP == nil {
+				continue
+			}
+			for _, p := range rule.HTTP.Paths {
+				if p.Backend.Service == nil {
+					continue
+				}
+				if slices.Contains(services, k8s.ResourceIdentifier{
+					Name:       p.Backend.Service.Name,
+					Namespace:  item.Namespace,
+					APIVersion: "v1",
+					Kind:       "Service",
+				}) {
+					ingress = append(ingress, k8s.ResourceIdentifier{
+						APIVersion: item.APIVersion,
+						Kind:       item.Kind,
+						Name:       item.Name,
+						Namespace:  item.Namespace,
+					})
+				}
+			}
+		}
+	}
+	return ingress, nil
+}
+
 func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, resource k8s.ResourceIdentifier) ([]k8s.ResourceIdentifier, error) {
+	if services, ok := r.cache[builtinRuleService]; ok {
+		return services, nil
+	}
 	subs, err := r.getSubResources(ctx, v, resource)
 	if err != nil {
 		return nil, err
@@ -372,12 +427,12 @@ func (r *engine) handleBuiltInRulesForService(ctx context.Context, v cue.Value, 
 			}
 		}
 	}
+	r.cache[builtinRuleService] = service
 	return service, nil
 }
 
 func listResources(ctx context.Context, selector ResourceSelector, relation k8s.ResourceIdentifier) ([]unstructured.Unstructured, error) {
 	cli := singleton.KubeClient.Get()
-	fmt.Println("====selector", selector)
 	gvk, err := k8s.GetGVKFromResource(k8s.ResourceIdentifier{
 		APIVersion: selector.apiVersion,
 		Kind:       selector.kind,
