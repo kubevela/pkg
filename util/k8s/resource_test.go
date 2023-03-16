@@ -45,9 +45,16 @@ func TestGetGVKFromResource(t *testing.T) {
 		"valid": {
 			resource: k8s.ResourceIdentifier{APIVersion: "apps/v1", Kind: "Deployment"},
 		},
+		"valid-group-resource": {
+			resource: k8s.ResourceIdentifier{Group: "apps", Resource: "Deployment"},
+		},
 		"invalid": {
 			resource:    k8s.ResourceIdentifier{APIVersion: "a/b/c", Kind: "Deployment"},
 			expectedErr: "unexpected GroupVersion string",
+		},
+		"invalid-group-resource": {
+			resource:    k8s.ResourceIdentifier{Group: "invalid", Resource: "Deployment"},
+			expectedErr: "no matches for invalid",
 		},
 	}
 	for name, tc := range testcases {
