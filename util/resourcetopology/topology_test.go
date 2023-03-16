@@ -48,7 +48,7 @@ func newDeployment(name string, namespace string, label string) *corev1.ConfigMa
 func TestGetSubResources(t *testing.T) {
 	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{})
 	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}, meta.RESTScopeNamespace)
-	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "StatefulSet"}, meta.RESTScopeNamespace)
+	mapper.Add(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "ReplicaSet"}, meta.RESTScopeNamespace)
 	mapper.Add(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "Pod"}, meta.RESTScopeNamespace)
 	ctx := context.Background()
 	defaultIdentifier := k8s.ResourceIdentifier{
@@ -64,14 +64,15 @@ func TestGetSubResources(t *testing.T) {
 				Namespace: "default",
 			},
 		},
-		&appsv1.StatefulSet{
+		&appsv1.ReplicaSet{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-stateful",
+				Name:      "test-rs",
 				Namespace: "default",
 				OwnerReferences: []metav1.OwnerReference{
 					{
-						Name: "test-deploy",
-						Kind: "Deployment",
+						APIVersion: "apps/v1",
+						Name:       "test-deploy",
+						Kind:       "Deployment",
 					},
 				},
 			},
@@ -82,8 +83,9 @@ func TestGetSubResources(t *testing.T) {
 				Namespace: "default",
 				OwnerReferences: []metav1.OwnerReference{
 					{
-						Name: "test-stateful",
-						Kind: "StatefulSet",
+						Name:       "test-rs",
+						APIVersion: "apps/v1",
+						Kind:       "ReplicaSet",
 					},
 				},
 			},
@@ -116,8 +118,8 @@ func TestGetSubResources(t *testing.T) {
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
-import "invalid"
-`,
+		import "invalid"
+		`,
 			},
 			expectedErr: "undefined",
 		},
@@ -125,58 +127,27 @@ import "invalid"
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
-rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
-}]
-`,
+		rules: [{
+			apiVersion: "apps/v1",
+			kind: "Deployment",
+		}]
+		`,
 			},
 		},
 		{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
-rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
-	subResources: [{
-		apiVersion: "a/b/c",
-		kind: "StatefulSet",
-		selectors: ownerReference: true
-	}]
-}]
-`,
-			},
-			expectedErr: "unexpected",
-		},
-		{
-			resource: defaultIdentifier,
-			rt: &engine{
-				ruleTemplate: `
-rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
-	subResources: [{
-		apiVersion: "apps/v1",
-		kind: "StatefulSet",
-		selectors: {
-			namespace: context.data.metadata.namespace,
-			ownerReference: true,
-		},
-	}],
-}, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
-	subResources: [{
-		apiVersion: "a/b/c",
-		kind: "Pod",
-		selectors: {
-			namespace: context.data.metadata.namespace,
-			ownerReference: true,
-		},
-	}],
-}]
-`,
+		rules: [{
+			apiVersion: "apps/v1",
+			kind: "Deployment",
+			subResources: [{
+				apiVersion: "a/b/c",
+				kind: "ReplicaSet",
+				selectors: ownerReference: true
+			}]
+		}]
+		`,
 			},
 			expectedErr: "unexpected",
 		},
@@ -184,12 +155,43 @@ rules: [{
 			resource: defaultIdentifier,
 			rt: &engine{
 				ruleTemplate: `
-rules: [{
-	apiVersion: "apps/v1",
-	kind: "Deployment",
-	subResources: true
-}]
-`,
+		rules: [{
+			apiVersion: "apps/v1",
+			kind: "Deployment",
+			subResources: [{
+				apiVersion: "apps/v1",
+				kind: "ReplicaSet",
+				selectors: {
+					namespace: context.data.metadata.namespace,
+					ownerReference: true,
+				},
+			}],
+		}, {
+			apiVersion: "a/b/c",
+			kind: "ReplicaSet",
+			subResources: [{
+				apiVersion: "v1",
+				kind: "Pod",
+				selectors: {
+					namespace: context.data.metadata.namespace,
+					ownerReference: true,
+				},
+			}],
+		}]
+		`,
+			},
+			expectedErr: "unexpected",
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+		rules: [{
+			apiVersion: "apps/v1",
+			kind: "Deployment",
+			subResources: true
+		}]
+		`,
 			},
 			expectedErr: "subResources should be a list",
 		},
@@ -202,18 +204,18 @@ rules: [{
 	kind: "Deployment",
 	subResources: [{
 		apiVersion: "apps/v1",
-		kind: "StatefulSet",
+		kind: "ReplicaSet",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
 		},
 	}],
 }, {
-	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	group: "apps",
+	resource: "replicaSet",
 	subResources: [{
-		apiVersion: "v1",
-		kind: "Pod",
+		group: "",
+		resource: "pod",
 		selectors: {
 			namespace: context.data.metadata.namespace,
 			ownerReference: true,
@@ -226,8 +228,8 @@ rules: [{
 				{
 					ResourceIdentifier: k8s.ResourceIdentifier{
 						APIVersion: "apps/v1",
-						Kind:       "StatefulSet",
-						Name:       "test-stateful",
+						Kind:       "ReplicaSet",
+						Name:       "test-rs",
 						Namespace:  "default",
 					},
 					Children: []SubResource{
@@ -334,20 +336,51 @@ func TestGetResourcePeers(t *testing.T) {
 			Endpoints: []discoveryv1.Endpoint{
 				{
 					TargetRef: &corev1.ObjectReference{
-						Kind:      "Pod",
-						Namespace: "default",
-						Name:      "test-pod",
+						APIVersion: "v1",
+						Kind:       "Pod",
+						Namespace:  "default",
+						Name:       "test-pod",
 					},
 				},
 			},
 		},
-		&appsv1.StatefulSet{
+		&discoveryv1.EndpointSlice{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-stateful",
+				Name:      "nil-target",
 				Namespace: "default",
 				OwnerReferences: []metav1.OwnerReference{
 					{
-						Name: "test-deploy",
+						Kind: "Service",
+						Name: "test-svc",
+					},
+				},
+			},
+			Endpoints: []discoveryv1.Endpoint{
+				{
+					TargetRef: nil,
+				},
+			},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-rs",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Name:       "test-deploy",
+						Kind:       "Deployment",
+						APIVersion: "apps/v1",
+					},
+				},
+			},
+		},
+		&appsv1.ReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-rs-not-match",
+				Namespace: "default",
+				OwnerReferences: []metav1.OwnerReference{
+					{
+						Name: "test-deploy-not-match",
 						Kind: "Deployment",
 					},
 				},
@@ -359,20 +392,9 @@ func TestGetResourcePeers(t *testing.T) {
 				Namespace: "default",
 				OwnerReferences: []metav1.OwnerReference{
 					{
-						Name: "test-stateful",
-						Kind: "StatefulSet",
-					},
-				},
-			},
-		},
-		&corev1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test-pod-not-match",
-				Namespace: "default",
-				OwnerReferences: []metav1.OwnerReference{
-					{
-						Name: "test-stateful-not-match",
-						Kind: "StatefulSet",
+						Name:       "test-rs",
+						Kind:       "ReplicaSet",
+						APIVersion: "apps/v1",
 					},
 				},
 			},
@@ -661,7 +683,7 @@ rules: [{
 	kind: "Deployment",
 	subResources: [{
 		apiVersion: "a/b/c",
-		kind: "StatefulSet",
+		kind: "ReplicaSet",
 		selectors: {
 			ownerReference: true,
 		},
@@ -675,7 +697,7 @@ rules: [{
 	}],
 }, {
 	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	kind: "ReplicaSet",
 	subResources: [{
 		apiVersion: "v1",
 		kind: "Pod",
@@ -697,7 +719,7 @@ rules: [{
 	kind: "Deployment",
 	subResources: [{
 		apiVersion: "apps/v1",
-		kind: "StatefulSet",
+		kind: "ReplicaSet",
 		selectors: {
 			ownerReference: true,
 		},
@@ -736,7 +758,7 @@ rules: [{
 	}],
 }, {
 	apiVersion: "apps/v1",
-	kind: "StatefulSet",
+	kind: "ReplicaSet",
 	subResources: [{
 		apiVersion: "v1",
 		kind: "Pod",
@@ -800,6 +822,42 @@ rules: [{
 	}],
 }]
 `,
+			},
+			expected: []k8s.ResourceIdentifier{
+				{
+					APIVersion: "v1",
+					Kind:       "ConfigMap",
+					Name:       "cm1",
+					Namespace:  "default",
+				},
+				{
+					APIVersion: "v1",
+					Kind:       "ConfigMap",
+					Name:       "cm2",
+					Namespace:  "default",
+				},
+			},
+		},
+		{
+			resource: defaultIdentifier,
+			rt: &engine{
+				ruleTemplate: `
+	rules: [{
+		group: "apps",
+		resource: "deployment",
+		peerResources: [{
+			group: "",
+			resource: "configMap",
+			selectors: {
+				name: [
+					for v in context.data.spec.template.spec.volumes if v.configMap != _|_ if v.configMap.name != _|_ {
+						v.configMap.name
+					}
+				],
+			},
+		}],
+	}]
+	`,
 			},
 			expected: []k8s.ResourceIdentifier{
 				{
