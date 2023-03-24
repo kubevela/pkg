@@ -23,14 +23,23 @@ import (
 )
 
 const (
-	// LabelSkipReconcile skip reconcile for objects that contains the label and with value "true"
-	LabelSkipReconcile = "controller.core.oam.dev/skip-reconcile"
+	// LabelPause skip reconcile for objects that contains the label and with value "true"
+	LabelPause = "controller.core.oam.dev/pause"
 
 	// ValueTrue true value
 	ValueTrue = "true"
 )
 
-// ShouldSkipReconcile check if the target object should skip reconcile
-func ShouldSkipReconcile(o runtime.Object) bool {
-	return k8s.GetLabel(o, LabelSkipReconcile) == ValueTrue
+// SetPause set if the target object should skip reconcile
+func SetPause(o runtime.Object, skip bool) {
+	if skip {
+		_ = k8s.AddLabel(o, LabelPause, ValueTrue)
+		return
+	}
+	_ = k8s.DeleteLabel(o, LabelPause)
+}
+
+// IsPaused check if the target object should skip reconcile
+func IsPaused(o runtime.Object) bool {
+	return k8s.GetLabel(o, LabelPause) == ValueTrue
 }

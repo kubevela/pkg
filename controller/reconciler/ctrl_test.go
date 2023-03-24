@@ -23,12 +23,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	"github.com/kubevela/pkg/controller/reconciler"
-	"github.com/kubevela/pkg/util/k8s"
 )
 
-func TestShouldSkipReconcile(t *testing.T) {
+func TestPauseReconcile(t *testing.T) {
 	cm := &corev1.ConfigMap{}
-	require.False(t, reconciler.ShouldSkipReconcile(cm))
-	require.NoError(t, k8s.AddLabel(cm, reconciler.LabelSkipReconcile, reconciler.ValueTrue))
-	require.True(t, reconciler.ShouldSkipReconcile(cm))
+	require.False(t, reconciler.IsPaused(cm))
+	reconciler.SetPause(cm, true)
+	require.True(t, reconciler.IsPaused(cm))
+	reconciler.SetPause(cm, false)
+	require.False(t, reconciler.IsPaused(cm))
 }
