@@ -32,6 +32,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
+	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
 	"github.com/kubevela/pkg/cue/cuex/providers/http"
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
@@ -217,6 +218,7 @@ func NewCompilerWithDefaultInternalPackages() *Compiler {
 		base64.Package,
 		http.Package,
 		kube.Package,
+		cueext.Package,
 	)
 }
 
