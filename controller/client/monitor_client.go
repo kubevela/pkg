@@ -79,10 +79,10 @@ type monitorCache struct {
 	cache.Cache
 }
 
-func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cb := monitor(ctx, "GetCache", obj)
 	defer cb()
-	return c.Cache.Get(ctx, key, obj)
+	return c.Cache.Get(ctx, key, obj, opts...)
 }
 
 func (c *monitorCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -96,10 +96,10 @@ type monitorClient struct {
 	client.Client
 }
 
-func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+func (c *monitorClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cb := monitor(ctx, "Get", obj)
 	defer cb()
-	return c.Client.Get(ctx, key, obj)
+	return c.Client.Get(ctx, key, obj, opts...)
 }
 
 func (c *monitorClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -142,19 +142,55 @@ func (c *monitorClient) Status() client.StatusWriter {
 	return &monitorStatusWriter{c.Client.Status()}
 }
 
+func (c *monitorClient) SubResource(subResource string) client.SubResourceClient {
+	return &monitorSubResourceClient{
+		subResource:       subResource,
+		SubResourceClient: c.Client.SubResource(subResource),
+	}
+}
+
 // monitorStatusWriter records time costs in metrics when execute function calls
 type monitorStatusWriter struct {
 	client.StatusWriter
 }
 
-func (w *monitorStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (w *monitorStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	cb := monitor(ctx, "StatusUpdate", obj)
 	defer cb()
 	return w.StatusWriter.Update(ctx, obj, opts...)
 }
 
-func (w *monitorStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (w *monitorStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	cb := monitor(ctx, "StatusPatch", obj)
 	defer cb()
 	return w.StatusWriter.Patch(ctx, obj, patch, opts...)
+}
+
+type monitorSubResourceClient struct {
+	subResource string
+	client.SubResourceClient
+}
+
+func (c *monitorSubResourceClient) Get(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceGetOption) error {
+	cb := monitor(ctx, "SubResourceGet:"+c.subResource, obj)
+	defer cb()
+	return c.SubResourceClient.Get(ctx, obj, subResource, opts...)
+}
+
+func (c *monitorSubResourceClient) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	cb := monitor(ctx, "SubResourceCreate:"+c.subResource, obj)
+	defer cb()
+	return c.SubResourceClient.Create(ctx, obj, subResource, opts...)
+}
+
+func (c *monitorSubResourceClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+	cb := monitor(ctx, "SubResourceUpdate:"+c.subResource, obj)
+	defer cb()
+	return c.SubResourceClient.Update(ctx, obj, opts...)
+}
+
+func (c *monitorSubResourceClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	cb := monitor(ctx, "SubResourcePatch:"+c.subResource, obj)
+	defer cb()
+	return c.SubResourceClient.Patch(ctx, obj, patch, opts...)
 }

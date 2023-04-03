@@ -37,7 +37,7 @@ func TestNamespace(t *testing.T) {
 	base := fake.NewClientBuilder().Build()
 	cli := &pkgclient.DelegatingHandlerClient{
 		Client: base,
-		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, _ ...client.GetOption) error {
 			switch key.Name {
 			case "exist":
 				return nil

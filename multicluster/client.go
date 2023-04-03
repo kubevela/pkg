@@ -42,8 +42,16 @@ type gatedStatusWriter struct {
 	gateway client.StatusWriter
 }
 
+// gatedSubResourceClient use base client to handle hub cluster requests and
+// use gateway client to do managed cluster requests
+type gatedSubResourceClient struct {
+	base    client.SubResourceClient
+	gateway client.SubResourceClient
+}
+
 var _ client.Client = &gatedClient{}
 var _ client.StatusWriter = &gatedStatusWriter{}
+var _ client.SubResourceClient = &gatedSubResourceClient{}
 
 func (m *gatedClient) getClientFor(ctx context.Context) client.Client {
 	if cluster, exists := ClusterFrom(ctx); !exists || IsLocal(cluster) {
@@ -59,8 +67,15 @@ func (m *gatedStatusWriter) getWriterFor(ctx context.Context) client.StatusWrite
 	return m.gateway
 }
 
-func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object) error {
-	return m.getClientFor(ctx).Get(ctx, key, obj)
+func (m *gatedSubResourceClient) getClientFor(ctx context.Context) client.SubResourceClient {
+	if cluster, exists := ClusterFrom(ctx); !exists || IsLocal(cluster) {
+		return m.base
+	}
+	return m.gateway
+}
+
+func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	return m.getClientFor(ctx).Get(ctx, key, obj, opts...)
 }
 
 func (m *gatedClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
@@ -87,6 +102,13 @@ func (m *gatedClient) DeleteAllOf(ctx context.Context, obj client.Object, opts .
 	return m.getClientFor(ctx).DeleteAllOf(ctx, obj, opts...)
 }
 
+func (m *gatedClient) SubResource(subResource string) client.SubResourceClient {
+	return &gatedSubResourceClient{
+		base:    m.base.SubResource(subResource),
+		gateway: m.gateway.SubResource(subResource),
+	}
+}
+
 func (m *gatedClient) Status() client.StatusWriter {
 	return m.writer
 }
@@ -99,12 +121,32 @@ func (m *gatedClient) RESTMapper() meta.RESTMapper {
 	return m.base.RESTMapper()
 }
 
-func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+func (m *gatedStatusWriter) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	return m.getWriterFor(ctx).Create(ctx, obj, subResource, opts...)
+}
+
+func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
 	return m.getWriterFor(ctx).Update(ctx, obj, opts...)
 }
 
-func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	return m.getWriterFor(ctx).Patch(ctx, obj, patch, opts...)
+}
+
+func (m *gatedSubResourceClient) Get(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceGetOption) error {
+	return m.getClientFor(ctx).Get(ctx, obj, subResource, opts...)
+}
+
+func (m *gatedSubResourceClient) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
+	return m.getClientFor(ctx).Create(ctx, obj, subResource, opts...)
+}
+
+func (m *gatedSubResourceClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
+	return m.getClientFor(ctx).Update(ctx, obj, opts...)
+}
+
+func (m *gatedSubResourceClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
+	return m.getClientFor(ctx).Patch(ctx, obj, patch, opts...)
 }
 
 // ClientOptions the options for creating multi-cluster gatedClient

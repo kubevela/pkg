@@ -20,9 +20,10 @@ import (
 	"context"
 
 	. "github.com/onsi/gomega"
-
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/k8s"
@@ -34,20 +35,28 @@ func TestClientFunctions(c client.Client) {
 	ctx := context.Background()
 	namespace, name := "test-"+rand.RandomString(4), "fake"
 	Ω(k8s.EnsureNamespace(ctx, c, namespace)).To(Succeed())
-	svc := &corev1.Service{
+	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
-		Spec: corev1.ServiceSpec{
-			Ports: []corev1.ServicePort{{Name: "example", Port: 6443}},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: pointer.Int32(1),
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
+				Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "test", Image: "test"}}},
+			},
 		},
 	}
-	Ω(c.Create(ctx, svc)).To(Succeed())
-	Ω(c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, svc)).To(Succeed())
+	Ω(c.Create(ctx, deploy)).To(Succeed())
+	Ω(c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, deploy)).To(Succeed())
 	Ω(c.List(ctx, &corev1.ServiceList{})).To(Succeed())
-	Ω(c.Update(ctx, svc)).To(Succeed())
-	Ω(c.Patch(ctx, svc, client.Merge)).To(Succeed())
-	Ω(c.Status().Update(ctx, svc)).To(Succeed())
-	Ω(c.Status().Patch(ctx, svc, client.Merge)).To(Succeed())
-	Ω(c.Delete(ctx, svc)).To(Succeed())
+	Ω(c.Update(ctx, deploy)).To(Succeed())
+	Ω(c.Patch(ctx, deploy, client.Merge)).To(Succeed())
+	Ω(c.Status().Update(ctx, deploy)).To(Succeed())
+	Ω(c.Status().Patch(ctx, deploy, client.Merge)).To(Succeed())
+	Ω(c.SubResource("status").Get(ctx, deploy, deploy)).To(Succeed())
+	Ω(c.SubResource("status").Update(ctx, deploy)).To(Succeed())
+	Ω(c.SubResource("status").Patch(ctx, deploy, client.Merge)).To(Succeed())
+	Ω(c.Delete(ctx, deploy)).To(Succeed())
 	Ω(c.DeleteAllOf(ctx, &corev1.ConfigMap{}, client.InNamespace(namespace))).To(Succeed())
 	Ω(c.Scheme().IsGroupRegistered("apps")).To(BeTrue())
 	_, err := c.RESTMapper().ResourceSingularizer("configmaps")

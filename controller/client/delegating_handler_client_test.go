@@ -35,7 +35,7 @@ func TestDelegatingHandlerClient(t *testing.T) {
 	err := fmt.Errorf("injected")
 	_client := &velaclient.DelegatingHandlerClient{
 		Client: c,
-		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object) error {
+		Getter: func(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 			return err
 		},
 		Lister: func(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
