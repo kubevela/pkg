@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The KubeVela Authors.
+Copyright 2023 The KubeVela Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,24 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sync_test
+package jsonutil
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/kubevela/pkg/util/sync"
+	"encoding/json"
+	"fmt"
 )
 
-func TestSyncMap(t *testing.T) {
-	m := sync.NewMap[string, int]()
-	m.Set("1", 1)
-	val, found := m.Get("1")
-	require.True(t, found)
-	require.Equal(t, 1, val)
-	require.Equal(t, map[string]int{"1": 1}, m.Data())
-	m.Del("1")
-	_, found = m.Get("1")
-	require.False(t, found)
+// AsType call json marshal and unmarshal to convert src to given target type
+func AsType[T any](src interface{}) (*T, error) {
+	bs, err := json.Marshal(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal %T: %w", src, err)
+	}
+	dest := new(T)
+	if err = json.Unmarshal(bs, dest); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal to %T: %w", dest, err)
+	}
+	return dest, nil
 }
