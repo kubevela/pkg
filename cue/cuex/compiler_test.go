@@ -138,3 +138,27 @@ func TestResolve(t *testing.T) {
 		})
 	}
 }
+
+type nestedStruct struct {
+	Value string `json:"value"`
+}
+
+type testStruct struct {
+	Val    string       `json:"val"`
+	Nested nestedStruct `json:"nested"`
+}
+
+func TestWithExtraData(t *testing.T) {
+	for name, tt := range map[string]any{
+		"standard-map": map[string]interface{}{"key": map[string]interface{}{"k": "v"}},
+		"raw-string":   "raw-string",
+		"nil":          nil,
+		"list":         []string{"a", "b"},
+		"struct-data":  testStruct{Val: "a", Nested: nestedStruct{Value: "b"}},
+		"struct-array": []testStruct{{Val: "a"}, {Val: "b"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cuex.NewCompileConfig(cuex.WithExtraData(name, tt))
+		})
+	}
+}
