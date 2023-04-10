@@ -73,6 +73,12 @@ func TestCompile(t *testing.T) {
 	require.NoError(t, err)
 	_, err = val.LookupPath(cue.ParsePath("output")).String()
 	require.Error(t, err)
+
+	val, err = compiler.CompileStringWithOptions(ctx, `a: parameter.nested`, cuex.WithExtraData("parameter.nested", "value"))
+	require.NoError(t, err)
+	s, err = val.LookupPath(cue.ParsePath("a")).String()
+	require.NoError(t, err)
+	require.Equal(t, "value", s)
 }
 
 func TestResolve(t *testing.T) {
