@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/cue/util"
+	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/slices"
 )
@@ -97,7 +97,7 @@ func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
 	var err error
 	var byt []byte
 	data := "{}"
-	if in.data != nil && !reflect.ValueOf(in.data).IsNil() {
+	if !runtime.IsNil(in.data) {
 		if byt, err = json.Marshal(in.data); err == nil {
 			data = string(byt)
 		}
