@@ -18,8 +18,6 @@ package cuex
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
@@ -94,16 +92,14 @@ type withExtraData struct {
 
 // ApplyTo .
 func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
-	var err error
-	var byt []byte
-	data := "{}"
-	if !runtime.IsNil(in.data) {
-		if byt, err = json.Marshal(in.data); err == nil {
-			data = string(byt)
-		}
-	}
-	data = fmt.Sprintf("%s: %s", in.key, data)
 	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, template string) (string, error) {
+		val, path := cuecontext.New().CompileString(""), cue.ParsePath(in.key)
+		if runtime.IsNil(in.data) {
+			val = val.FillPath(path, struct{}{})
+		} else {
+			val = val.FillPath(path, in.data)
+		}
+		data, err := util.ToString(val)
 		return strings.Join([]string{template, data}, "\n"), err
 	})
 }
