@@ -45,4 +45,12 @@ func TestSyncMap(t *testing.T) {
 	require.Equal(t, 5, cnt)
 	m.Load(map[string]int{"c": 3})
 	require.Equal(t, 1, len(m.Keys()))
+
+	// Test immutable data
+	data := m.Data()
+	require.Equal(t, map[string]int{"c": 3}, data)
+	data["c"] = 4
+	v, ok = m.Get("c")
+	require.True(t, ok)
+	require.Equal(t, 3, v)
 }
