@@ -117,7 +117,7 @@ package kube
 		} | {
 			// +usage=The type of patch being provided
 			type: "json"
-			data: [{...}]
+			data: [...{...}]
 		} | {
 			// +usage=The type of patch being provided
 			type: "strategic"
