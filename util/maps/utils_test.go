@@ -43,4 +43,8 @@ func TestUtils(t *testing.T) {
 
 	_m := maps.Copy(m)
 	require.Equal(t, 2, len(_m))
+
+	_m = maps.Filter(m, func(k string, _ int) bool { return k == "a" })
+	_m = maps.Map(_m, func(v int) int { return v + 1 })
+	require.Equal(t, map[string]int{"a": 2}, _m)
 }
