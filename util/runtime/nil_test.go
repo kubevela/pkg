@@ -31,6 +31,7 @@ func TestIsNil(t *testing.T) {
 		Input  any
 		Output bool
 	}{
+		"string":     {Input: "", Output: true},
 		"nil":        {Input: nil, Output: true},
 		"nil-ptr":    {Input: (*testStruct)(nil), Output: true},
 		"struct-ptr": {Input: &testStruct{}, Output: false},

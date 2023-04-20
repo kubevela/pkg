@@ -29,6 +29,8 @@ func IsNil(i any) bool {
 	case reflect.Chan, reflect.Func, reflect.Map, reflect.Pointer,
 		reflect.UnsafePointer, reflect.Interface, reflect.Slice:
 		return reflect.ValueOf(i).IsNil()
+	case reflect.String:
+		return i == ""
 	}
 	return false
 }
