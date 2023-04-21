@@ -26,6 +26,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -187,7 +188,7 @@ func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, er
 var DefaultCompiler = singleton.NewSingleton[*Compiler](func() *Compiler {
 	compiler := NewCompilerWithDefaultInternalPackages()
 	if EnableExternalPackageForDefaultCompiler {
-		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {
 			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
 		}
 	}
