@@ -18,9 +18,6 @@ package cuex
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"reflect"
 	"strings"
 	"time"
 
@@ -29,6 +26,7 @@ import (
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/klog/v2"
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
@@ -37,6 +35,7 @@ import (
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
 	"github.com/kubevela/pkg/cue/util"
+	"github.com/kubevela/pkg/util/runtime"
 	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/slices"
 )
@@ -94,16 +93,14 @@ type withExtraData struct {
 
 // ApplyTo .
 func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
-	var err error
-	var byt []byte
-	data := "{}"
-	if in.data != nil && !reflect.ValueOf(in.data).IsNil() {
-		if byt, err = json.Marshal(in.data); err == nil {
-			data = string(byt)
-		}
-	}
-	data = fmt.Sprintf("%s: %s", in.key, data)
 	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, template string) (string, error) {
+		val, path := cuecontext.New().CompileString(""), cue.ParsePath(in.key)
+		if runtime.IsNil(in.data) {
+			val = val.FillPath(path, struct{}{})
+		} else {
+			val = val.FillPath(path, in.data)
+		}
+		data, err := util.ToString(val)
 		return strings.Join([]string{template, data}, "\n"), err
 	})
 }
@@ -191,7 +188,7 @@ func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, er
 var DefaultCompiler = singleton.NewSingleton[*Compiler](func() *Compiler {
 	compiler := NewCompilerWithDefaultInternalPackages()
 	if EnableExternalPackageForDefaultCompiler {
-		if err := compiler.LoadExternalPackages(context.Background()); err != nil {
+		if err := compiler.LoadExternalPackages(context.Background()); err != nil && !kerrors.IsNotFound(err) {
 			klog.Errorf("failed to load external packages for cuex default compiler: %s", err.Error())
 		}
 	}

@@ -101,3 +101,14 @@ func (in *SyncMap[K, V]) Load(m map[K]V) {
 	defer in.mu.Unlock()
 	in.m = _m
 }
+
+// Data return a full copy of underlying
+func (in *SyncMap[K, V]) Data() map[K]V {
+	in.mu.RLock()
+	defer in.mu.RUnlock()
+	copied := map[K]V{}
+	for k, v := range in.m {
+		copied[k] = v
+	}
+	return copied
+}

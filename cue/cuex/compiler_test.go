@@ -73,6 +73,12 @@ func TestCompile(t *testing.T) {
 	require.NoError(t, err)
 	_, err = val.LookupPath(cue.ParsePath("output")).String()
 	require.Error(t, err)
+
+	val, err = compiler.CompileStringWithOptions(ctx, `a: parameter.nested`, cuex.WithExtraData("parameter.nested", "value"))
+	require.NoError(t, err)
+	s, err = val.LookupPath(cue.ParsePath("a")).String()
+	require.NoError(t, err)
+	require.Equal(t, "value", s)
 }
 
 func TestResolve(t *testing.T) {
@@ -135,6 +141,30 @@ func TestResolve(t *testing.T) {
 			v := cctx.CompileString(tt.Input)
 			_, err := compiler.Resolve(_ctx, v)
 			require.Error(t, tt.Error, err)
+		})
+	}
+}
+
+type nestedStruct struct {
+	Value string `json:"value"`
+}
+
+type testStruct struct {
+	Val    string       `json:"val"`
+	Nested nestedStruct `json:"nested"`
+}
+
+func TestWithExtraData(t *testing.T) {
+	for name, tt := range map[string]any{
+		"standard-map": map[string]interface{}{"key": map[string]interface{}{"k": "v"}},
+		"raw-string":   "raw-string",
+		"nil":          nil,
+		"list":         []string{"a", "b"},
+		"struct-data":  testStruct{Val: "a", Nested: nestedStruct{Value: "b"}},
+		"struct-array": []testStruct{{Val: "a"}, {Val: "b"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cuex.NewCompileConfig(cuex.WithExtraData(name, tt))
 		})
 	}
 }
