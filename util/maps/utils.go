@@ -43,6 +43,17 @@ func Map[K comparable, U any, V any](m map[K]U, fn func(U) V) map[K]V {
 	return _m
 }
 
+// Filter functional filter for map items
+func Filter[K comparable, V any](m map[K]V, fn func(K, V) bool) map[K]V {
+	_m := make(map[K]V, len(m))
+	for key, val := range m {
+		if fn(key, val) {
+			_m[key] = val
+		}
+	}
+	return _m
+}
+
 // Copy return a copy of given map
 func Copy[K comparable, V any](m map[K]V) map[K]V {
 	_m := make(map[K]V)
