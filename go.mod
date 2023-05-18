@@ -3,7 +3,7 @@ module github.com/kubevela/pkg
 go 1.19
 
 require (
-	cuelang.org/go v0.5.0-beta.2.0.20230130095913-d573e0c2f041
+	cuelang.org/go v0.5.0
 	github.com/emicklei/go-restful/v3 v3.9.0
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/go-stack/stack v1.8.1
