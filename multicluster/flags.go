@@ -21,6 +21,7 @@ import "github.com/spf13/pflag"
 // AddFlags add flags for multicluster
 func AddFlags(set *pflag.FlagSet) {
 	AddClusterGatewayClientFlags(set)
+	AddRemoteClusterClientFlags(set)
 }
 
 // AddClusterGatewayClientFlags add flags for default cluster-gateway client
@@ -31,4 +32,17 @@ func AddClusterGatewayClientFlags(set *pflag.FlagSet) {
 	set.StringVarP(&DefaultClusterGatewayClientOptions.CAFile,
 		"cluster-gateway-ca-file", "", "",
 		"Specify the CA file path for cluster-gateway.")
+}
+
+// AddRemoteClusterClientFlags add flags for remote cluster client
+func AddRemoteClusterClientFlags(set *pflag.FlagSet) {
+	set.BoolVarP(&DefaultDisableRemoteClusterClient,
+		"disable-remote-cluster-client", "", DefaultDisableRemoteClusterClient,
+		"disable RemoteClusterClient for default multicluster client")
+	set.DurationVarP(&RemoteClusterClientCacheTimeout,
+		"remote-cluster-client-cache-timeout", "", RemoteClusterClientCacheTimeout,
+		"the timeout of remote cluster's RESTMapper cache")
+	set.Float64VarP(&RemoteClusterClientCachePruneProbability,
+		"remote-cluster-client-cache-prune-probability", "", RemoteClusterClientCachePruneProbability,
+		"the cache prune probability of remote clusters' RESTMapper")
 }

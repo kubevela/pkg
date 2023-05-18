@@ -21,6 +21,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
+	authnv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -56,6 +57,9 @@ func TestClientFunctions(c client.Client) {
 	Ω(c.SubResource("status").Get(ctx, deploy, deploy)).To(Succeed())
 	Ω(c.SubResource("status").Update(ctx, deploy)).To(Succeed())
 	Ω(c.SubResource("status").Patch(ctx, deploy, client.Merge)).To(Succeed())
+	sa := &corev1.ServiceAccount{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
+	Ω(client.IgnoreAlreadyExists(c.Create(ctx, sa))).To(Succeed())
+	Ω(c.SubResource("token").Create(ctx, sa, &authnv1.TokenRequest{})).To(Succeed())
 	Ω(c.Delete(ctx, deploy)).To(Succeed())
 	Ω(c.DeleteAllOf(ctx, &corev1.ConfigMap{}, client.InNamespace(namespace))).To(Succeed())
 	Ω(c.Scheme().IsGroupRegistered("apps")).To(BeTrue())
