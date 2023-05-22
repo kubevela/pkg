@@ -25,11 +25,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
 	"k8s.io/apimachinery/pkg/util/mergepatch"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	"k8s.io/client-go/kubernetes/scheme"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/k8s"
 )
+
+var k8sScheme = runtime.NewScheme()
+
+func init() {
+	_ = clientgoscheme.AddToScheme(k8sScheme)
+}
 
 // PatchAction is the action for patch
 type PatchAction struct {
@@ -56,7 +62,7 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 	var patchData []byte
 	var lookupPatchMeta strategicpatch.LookupPatchMeta
 
-	versionedObject, err := scheme.Scheme.New(currentObj.GetObjectKind().GroupVersionKind())
+	versionedObject, err := k8sScheme.New(currentObj.GetObjectKind().GroupVersionKind())
 	switch {
 	case runtime.IsNotRegisteredError(err):
 		// use JSONMergePatch for custom resources
