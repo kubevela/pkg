@@ -66,6 +66,13 @@ var _ = Describe("Test multicluster client", func() {
 		Ω(err).To(Succeed())
 		tester.TestClientFunctions(c)
 
+		By("Test create client without remoteClusterClient")
+		_, err = multicluster.NewClient(cfg, multicluster.ClientOptions{
+			Options:                    client.Options{Scheme: scheme.Scheme},
+			DisableRemoteClusterClient: true,
+		})
+		Ω(err).To(Succeed())
+
 		By("Client with args")
 		multicluster.AddClusterGatewayClientFlags(pflag.CommandLine)
 		_, err = multicluster.NewDefaultClient(cfg, client.Options{})

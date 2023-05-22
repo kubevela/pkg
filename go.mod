@@ -8,6 +8,7 @@ require (
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/go-stack/stack v1.8.1
 	github.com/google/go-cmp v0.5.9
+	github.com/jellydator/ttlcache/v3 v3.0.1
 	github.com/klauspost/compress v1.16.3
 	github.com/oam-dev/cluster-gateway v1.9.0-alpha.1
 	github.com/onsi/ginkgo/v2 v2.9.2
