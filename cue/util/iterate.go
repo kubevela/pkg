@@ -31,11 +31,25 @@ const orderKey = "step"
 // Iterate over all fields of the cue.Value with fn, if fn returns true,
 // iteration stops
 func Iterate(value cue.Value, fn func(v cue.Value) (stop bool)) (stop bool) {
-	var it *cue.Iterator
 	// skip definition
 	if strings.Contains(value.Path().String(), "#") {
 		return false
 	}
+	values := FieldValues(value)
+	for _, val := range values {
+		if Iterate(val, fn) {
+			return true
+		}
+	}
+	return fn(value)
+}
+
+// FieldValues the field values of the given value
+// If the given value is a list, all its items will be returned
+// If the given value is a map, all its key-value entries will be returned
+// The returned values will be sorted in the order of their "step" attribute
+func FieldValues(value cue.Value) []cue.Value {
+	var it *cue.Iterator
 	switch value.Kind() {
 	case cue.ListKind:
 		_it, _ := value.List()
@@ -59,10 +73,5 @@ func Iterate(value cue.Value, fn func(v cue.Value) (stop bool)) (stop bool) {
 			return x < y
 		}
 	})
-	for _, val := range values {
-		if Iterate(val, fn) {
-			return true
-		}
-	}
-	return fn(value)
+	return values
 }
