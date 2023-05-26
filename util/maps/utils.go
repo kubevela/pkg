@@ -62,3 +62,13 @@ func Copy[K comparable, V any](m map[K]V) map[K]V {
 	}
 	return _m
 }
+
+// From create a map from array
+func From[T any, K comparable, V any](arr []T, fn func(T) (K, V)) map[K]V {
+	_m := make(map[K]V, len(arr))
+	for _, item := range arr {
+		k, v := fn(item)
+		_m[k] = v
+	}
+	return _m
+}

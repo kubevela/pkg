@@ -47,4 +47,8 @@ func TestUtils(t *testing.T) {
 	_m = maps.Filter(m, func(k string, _ int) bool { return k == "a" })
 	_m = maps.Map(_m, func(v int) int { return v + 1 })
 	require.Equal(t, map[string]int{"a": 2}, _m)
+
+	require.Equal(t, map[int]string{1: "0", 2: "1"}, maps.From([]int{0, 1}, func(i int) (int, string) {
+		return i + 1, fmt.Sprintf("%d", i)
+	}))
 }
