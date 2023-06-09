@@ -18,6 +18,8 @@ package http_test
 
 import (
 	"context"
+	nethttp "net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -26,9 +28,13 @@ import (
 )
 
 func TestDo(t *testing.T) {
+	svr := httptest.NewServer(nethttp.HandlerFunc(func(writer nethttp.ResponseWriter, request *nethttp.Request) {
+		writer.WriteHeader(200)
+	}))
+	defer svr.Close()
 	ret, err := http.Do(context.Background(), &http.DoParams{
 		Params: http.RequestVars{
-			Method: "GET", URL: "https://api64.ipify.org/",
+			Method: "GET", URL: svr.URL,
 		},
 	})
 	require.NoError(t, err)
