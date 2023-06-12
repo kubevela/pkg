@@ -18,8 +18,8 @@ package patch
 
 import (
 	"encoding/json"
-	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
@@ -30,12 +30,6 @@ import (
 
 	"github.com/kubevela/pkg/util/k8s"
 )
-
-var k8sScheme = runtime.NewScheme()
-
-func init() {
-	_ = clientgoscheme.AddToScheme(k8sScheme)
-}
 
 // PatchAction is the action for patch
 type PatchAction struct {
@@ -52,17 +46,20 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 	if err != nil {
 		return nil, err
 	}
-	original := getOriginalConfiguration(currentObj, a.AnnoLastAppliedConfig)
-	modified, err := getModifiedConfiguration(modifiedObj, a.UpdateAnno, a.AnnoLastAppliedConfig, a.AnnoLastAppliedTime)
+	original := GetOriginalConfiguration(currentObj, a.AnnoLastAppliedConfig)
+	modified, err := GetModifiedConfiguration(modifiedObj, a.AnnoLastAppliedConfig, a.AnnoLastAppliedTime)
 	if err != nil {
 		return nil, err
+	}
+	if a.UpdateAnno {
+		_ = k8s.AddAnnotation(modifiedObj, a.AnnoLastAppliedConfig, string(modified))
+		modified, _ = json.Marshal(modifiedObj)
 	}
 
 	var patchType types.PatchType
 	var patchData []byte
-	var lookupPatchMeta strategicpatch.LookupPatchMeta
 
-	versionedObject, err := k8sScheme.New(currentObj.GetObjectKind().GroupVersionKind())
+	versionedObject, err := clientgoscheme.Scheme.New(currentObj.GetObjectKind().GroupVersionKind())
 	switch {
 	case runtime.IsNotRegisteredError(err):
 		// use JSONMergePatch for custom resources
@@ -76,10 +73,12 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 		if err != nil {
 			return nil, err
 		}
+	case err != nil:
+		return nil, err
 	default:
 		// use StrategicMergePatch for K8s built-in resources
 		patchType = types.StrategicMergePatchType
-		lookupPatchMeta, err = strategicpatch.NewPatchMetaFromStruct(versionedObject)
+		lookupPatchMeta, err := strategicpatch.NewPatchMetaFromStruct(versionedObject)
 		if err != nil {
 			return nil, err
 		}
@@ -91,51 +90,24 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 	return client.RawPatch(patchType, patchData), nil
 }
 
-// addLastAppliedConfigAnnotation creates annotation recording current configuration as
-// original configuration for latter use in computing a three way diff
-func addLastAppliedConfigAnnotation(obj runtime.Object, annoAppliedConfig, annoAppliedTime string) error {
-	config, err := getModifiedConfiguration(obj, false, annoAppliedConfig, annoAppliedTime)
-	if err != nil {
-		return err
-	}
-
-	return k8s.AddAnnotation(obj, annoAppliedConfig, string(config))
-}
-
-// getModifiedConfiguration serializes the object into byte stream.
-// If `updateAnnotation` is true, it embeds the result as an annotation in the
-// modified configuration.
-func getModifiedConfiguration(obj runtime.Object, updateAnnotation bool, annoAppliedConfig, annoAppliedTime string) ([]byte, error) {
-	if err := k8s.DeleteAnnotation(obj, annoAppliedConfig); err != nil {
-		return nil, err
-	}
+// GetModifiedConfiguration serializes the object into byte stream
+func GetModifiedConfiguration(obj runtime.Object, annoAppliedConfig, annoAppliedTime string) ([]byte, error) {
 	o := obj.DeepCopyObject()
-
-	modified, err := json.Marshal(o)
-	if err != nil {
-		return nil, err
-	}
-
-	if updateAnnotation {
-		err := k8s.AddAnnotation(o, annoAppliedConfig, string(modified))
-		if err != nil {
-			return nil, err
-		}
-		modified, err = json.Marshal(o)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if err := k8s.AddAnnotation(obj, annoAppliedTime, time.Now().Format(time.RFC3339)); err != nil {
-		return nil, err
-	}
-	return modified, nil
+	_ = k8s.DeleteAnnotation(o, annoAppliedConfig)
+	_ = k8s.DeleteAnnotation(o, annoAppliedTime)
+	return json.Marshal(o)
 }
 
-// getOriginalConfiguration gets original configuration of the object
+// GetOriginalConfiguration gets original configuration of the object
 // form the annotation, or nil if no annotation found.
-func getOriginalConfiguration(obj runtime.Object, anno string) []byte {
+func GetOriginalConfiguration(obj runtime.Object, anno string) []byte {
 	original := k8s.GetAnnotation(obj, anno)
-	return []byte(original)
+	switch original {
+	case "":
+		return []byte(k8s.GetAnnotation(obj, corev1.LastAppliedConfigAnnotation))
+	case "-", "skip":
+		return []byte(``)
+	default:
+		return []byte(original)
+	}
 }

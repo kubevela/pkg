@@ -62,7 +62,7 @@ func AddAnnotation(obj runtime.Object, key, value string) error {
 	if annos == nil {
 		annos = make(map[string]string)
 	}
-	annos[key] = string(value)
+	annos[key] = value
 	return metadataAccessor.SetAnnotations(obj, annos)
 }
 
