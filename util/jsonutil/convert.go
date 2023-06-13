@@ -33,3 +33,12 @@ func AsType[T any](src interface{}) (*T, error) {
 	}
 	return dest, nil
 }
+
+// CopyInto marshal the source object and unmarshal to destination object
+func CopyInto(src interface{}, dest interface{}) error {
+	bs, err := json.Marshal(src)
+	if err != nil {
+		return fmt.Errorf("failed to marshal %T: %w", src, err)
+	}
+	return json.Unmarshal(bs, dest)
+}

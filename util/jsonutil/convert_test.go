@@ -62,3 +62,18 @@ func TestAsType(t *testing.T) {
 	_, err = jsonutil.AsType[TestB](&TestA{A: 1})
 	require.Error(t, err)
 }
+
+type TestBCopy struct {
+	Val float32 `json:"val"`
+}
+
+func TestCopyInto(t *testing.T) {
+	bCopy := &TestBCopy{}
+	require.NoError(t, jsonutil.CopyInto(&TestB{B: 1.5}, bCopy))
+	require.Equal(t, float32(1.5), bCopy.Val)
+
+	require.NoError(t, jsonutil.CopyInto(&TestA{A: 1}, bCopy))
+	require.Equal(t, float32(1), bCopy.Val)
+
+	require.Error(t, jsonutil.CopyInto(&TestA{A: -1}, bCopy))
+}
