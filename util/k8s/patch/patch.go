@@ -18,6 +18,7 @@ package patch
 
 import (
 	"encoding/json"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,9 +34,12 @@ import (
 
 // PatchAction is the action for patch
 type PatchAction struct {
-	UpdateAnno            bool
+	// UpdateAnno update the annotation of last-applied-configuration on modifiedObj
+	UpdateAnno bool
+	// AnnoLastAppliedConfig the annotation key for last-applied-configuration
 	AnnoLastAppliedConfig string
-	AnnoLastAppliedTime   string
+	// AnnoLastAppliedTime the annotation key for last-applied-time
+	AnnoLastAppliedTime string
 }
 
 // ThreeWayMergePatch creates a patch by computing a three way diff based on
@@ -47,13 +51,9 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 		return nil, err
 	}
 	original := GetOriginalConfiguration(currentObj, a.AnnoLastAppliedConfig)
-	modified, err := GetModifiedConfiguration(modifiedObj, a.AnnoLastAppliedConfig, a.AnnoLastAppliedTime)
+	modified, err := GetModifiedConfiguration(modifiedObj, a.UpdateAnno, a.AnnoLastAppliedConfig)
 	if err != nil {
 		return nil, err
-	}
-	if a.UpdateAnno {
-		_ = k8s.AddAnnotation(modifiedObj, a.AnnoLastAppliedConfig, string(modified))
-		modified, _ = json.Marshal(modifiedObj)
 	}
 
 	var patchType types.PatchType
@@ -90,12 +90,34 @@ func ThreeWayMergePatch(currentObj, modifiedObj runtime.Object, a *PatchAction) 
 	return client.RawPatch(patchType, patchData), nil
 }
 
-// GetModifiedConfiguration serializes the object into byte stream
-func GetModifiedConfiguration(obj runtime.Object, annoAppliedConfig, annoAppliedTime string) ([]byte, error) {
+// AddLastAppliedConfiguration add last-applied-configuration and last-applied-time annotation
+func AddLastAppliedConfiguration(obj runtime.Object, annoAppliedConfig string, annoAppliedTime string) error {
+	modified, err := GetModifiedConfiguration(obj, false, annoAppliedConfig)
+	if err != nil {
+		return err
+	}
+	_ = k8s.AddAnnotation(obj, annoAppliedConfig, string(modified))
+	_ = k8s.AddAnnotation(obj, annoAppliedTime, time.Now().Format(time.RFC3339))
+	return nil
+}
+
+// GetModifiedConfiguration serializes the object into byte stream.
+// If `updateAnnotation` is true, it embeds the result as an annotation in the
+// modified configuration.
+func GetModifiedConfiguration(obj runtime.Object, updateAnnotation bool, annoAppliedConfig string) ([]byte, error) {
+	// copy the original one, remove last-applied-configuration and serialize it
 	o := obj.DeepCopyObject()
 	_ = k8s.DeleteAnnotation(o, annoAppliedConfig)
-	_ = k8s.DeleteAnnotation(o, annoAppliedTime)
-	return json.Marshal(o)
+	modified, err := json.Marshal(o)
+	if err != nil {
+		return nil, err
+	}
+	// if updateAnno set, serialize the object with the last-applied-configuration
+	if updateAnnotation {
+		_ = k8s.AddAnnotation(o, annoAppliedConfig, string(modified))
+		modified, err = json.Marshal(o)
+	}
+	return modified, err
 }
 
 // GetOriginalConfiguration gets original configuration of the object
