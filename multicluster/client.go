@@ -17,137 +17,12 @@ limitations under the License.
 package multicluster
 
 import (
-	"context"
 	"os"
 
 	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// gatedClient use base client to handle hub cluster requests and
-// use gateway client to do managed cluster requests
-type gatedClient struct {
-	base    client.Client
-	gateway client.Client
-	writer  *gatedStatusWriter
-}
-
-// gatedStatusWriter use base writer to handle hub cluster requests and
-// use gateway writer to do managed cluster requests
-type gatedStatusWriter struct {
-	base    client.StatusWriter
-	gateway client.StatusWriter
-}
-
-// gatedSubResourceClient use base client to handle hub cluster requests and
-// use gateway client to do managed cluster requests
-type gatedSubResourceClient struct {
-	base    client.SubResourceClient
-	gateway client.SubResourceClient
-}
-
-var _ client.Client = &gatedClient{}
-var _ client.StatusWriter = &gatedStatusWriter{}
-var _ client.SubResourceClient = &gatedSubResourceClient{}
-
-func (m *gatedClient) getClientFor(ctx context.Context) client.Client {
-	if cluster, exists := ClusterFrom(ctx); !exists || IsLocal(cluster) {
-		return m.base
-	}
-	return m.gateway
-}
-
-func (m *gatedStatusWriter) getWriterFor(ctx context.Context) client.StatusWriter {
-	if cluster, exists := ClusterFrom(ctx); !exists || IsLocal(cluster) {
-		return m.base
-	}
-	return m.gateway
-}
-
-func (m *gatedSubResourceClient) getClientFor(ctx context.Context) client.SubResourceClient {
-	if cluster, exists := ClusterFrom(ctx); !exists || IsLocal(cluster) {
-		return m.base
-	}
-	return m.gateway
-}
-
-func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
-	return m.getClientFor(ctx).Get(ctx, key, obj, opts...)
-}
-
-func (m *gatedClient) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
-	return m.getClientFor(ctx).List(ctx, list, opts...)
-}
-
-func (m *gatedClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-	return m.getClientFor(ctx).Create(ctx, obj, opts...)
-}
-
-func (m *gatedClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
-	return m.getClientFor(ctx).Delete(ctx, obj, opts...)
-}
-
-func (m *gatedClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
-	return m.getClientFor(ctx).Update(ctx, obj, opts...)
-}
-
-func (m *gatedClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
-	return m.getClientFor(ctx).Patch(ctx, obj, patch, opts...)
-}
-
-func (m *gatedClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
-	return m.getClientFor(ctx).DeleteAllOf(ctx, obj, opts...)
-}
-
-func (m *gatedClient) SubResource(subResource string) client.SubResourceClient {
-	return &gatedSubResourceClient{
-		base:    m.base.SubResource(subResource),
-		gateway: m.gateway.SubResource(subResource),
-	}
-}
-
-func (m *gatedClient) Status() client.StatusWriter {
-	return m.writer
-}
-
-func (m *gatedClient) Scheme() *runtime.Scheme {
-	return m.base.Scheme()
-}
-
-func (m *gatedClient) RESTMapper() meta.RESTMapper {
-	return m.base.RESTMapper()
-}
-
-func (m *gatedStatusWriter) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
-	return m.getWriterFor(ctx).Create(ctx, obj, subResource, opts...)
-}
-
-func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
-	return m.getWriterFor(ctx).Update(ctx, obj, opts...)
-}
-
-func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
-	return m.getWriterFor(ctx).Patch(ctx, obj, patch, opts...)
-}
-
-func (m *gatedSubResourceClient) Get(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceGetOption) error {
-	return m.getClientFor(ctx).Get(ctx, obj, subResource, opts...)
-}
-
-func (m *gatedSubResourceClient) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
-	return m.getClientFor(ctx).Create(ctx, obj, subResource, opts...)
-}
-
-func (m *gatedSubResourceClient) Update(ctx context.Context, obj client.Object, opts ...client.SubResourceUpdateOption) error {
-	return m.getClientFor(ctx).Update(ctx, obj, opts...)
-}
-
-func (m *gatedSubResourceClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
-	return m.getClientFor(ctx).Patch(ctx, obj, patch, opts...)
-}
 
 // ClientOptions the options for creating multi-cluster gatedClient
 type ClientOptions struct {
@@ -185,10 +60,7 @@ func NewClient(config *rest.Config, options ClientOptions) (client.Client, error
 	if len(options.ClusterGateway.URL) == 0 {
 		return constructor(wrapped, options.Options)
 	}
-	base, err := constructor(config, options.Options)
-	if err != nil {
-		return nil, err
-	}
+	var err error
 	wrapped.Host = options.ClusterGateway.URL
 	if len(options.ClusterGateway.CAFile) > 0 {
 		if wrapped.CAData, err = os.ReadFile(options.ClusterGateway.CAFile); err != nil {
@@ -202,18 +74,7 @@ func NewClient(config *rest.Config, options ClientOptions) (client.Client, error
 		// no err will be returned here
 		_ = clustergatewayv1alpha1.AddToScheme(options.Options.Scheme)
 	}
-	gateway, err := constructor(wrapped, options.Options)
-	if err != nil {
-		return nil, err
-	}
-	return &gatedClient{
-		base:    base,
-		gateway: gateway,
-		writer: &gatedStatusWriter{
-			base:    base.Status(),
-			gateway: gateway.Status(),
-		},
-	}, nil
+	return constructor(wrapped, options.Options)
 }
 
 // DefaultClusterGatewayClientOptions the default ClusterGatewayClientOptions
