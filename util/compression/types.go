@@ -16,6 +16,10 @@ limitations under the License.
 
 package compression
 
+import (
+	_ "go.uber.org/automaxprocs"
+)
+
 // Type the compression type
 type Type string
 
