@@ -16,9 +16,7 @@ limitations under the License.
 
 package compression
 
-import (
-	_ "go.uber.org/automaxprocs"
-)
+import "go.uber.org/automaxprocs/maxprocs"
 
 // Type the compression type
 type Type string
@@ -45,6 +43,8 @@ type compressor interface {
 }
 
 func init() {
+	// init automaxprocs to disable its default stdout logger
+	maxprocs.Set()
 	// Add compressors
 	compressors[Gzip] = &gzipCompressor{}
 	compressors[Zstd] = &zstdCompressor{}
