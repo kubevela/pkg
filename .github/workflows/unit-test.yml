@@ -12,7 +12,7 @@ on:
       - release-*
 
 env:
-  GO_VERSION: '1.19'
+  GO_VERSION: '1.22'
 
 jobs:
 
@@ -65,10 +65,10 @@ jobs:
         run: make unit-test
 
       - name: Upload coverage report
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: /tmp/vela-pkg-coverage.txt
+          file: coverage.txt
           flags: unit-test
           name: codecov-umbrella
           fail_ci_if_error: true
