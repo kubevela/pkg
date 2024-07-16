@@ -172,6 +172,34 @@ var _ = Describe("Test remote multicluster client", func() {
 		Ω(err).To(Succeed())
 		Ω(k8s.ClearNamespace(ctx, c, namespace)).To(Succeed())
 
+		namespace, name = "test-"+rand.RandomString(4), "fake"
+		Ω(k8s.EnsureNamespace(ctx, c, namespace)).To(Succeed())
+		deploy2 := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
+			Spec: appsv1.DeploymentSpec{
+				Replicas: pointer.Int32(1),
+				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test2"}},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test2"}},
+					Spec:       corev1.PodSpec{Containers: []corev1.Container{{Name: "test", Image: "test"}}},
+				},
+			},
+		}
+		Ω(c.Create(ctx, deploy2)).To(Succeed())
+		Ω(c.Get(ctx, controllerruntimeclient.ObjectKey{Namespace: namespace, Name: name}, deploy2)).To(Succeed())
+		Ω(c.Update(ctx, deploy2)).To(Succeed())
+		Ω(c.Patch(ctx, deploy2, controllerruntimeclient.Merge)).To(Succeed())
+		Ω(c.Status().Update(ctx, deploy2)).To(Succeed())
+		Ω(c.Status().Patch(ctx, deploy2, controllerruntimeclient.Merge)).To(Succeed())
+		updateBody2 := deploy2.DeepCopy()
+		updateBody2.SetName("")
+		updateBody2.SetNamespace("")
+		Ω(c.SubResource("status").Get(ctx, deploy2, updateBody2.DeepCopy())).To(Succeed())
+		Ω(c.SubResource("status").Update(ctx, deploy2, &controllerruntimeclient.SubResourceUpdateOptions{SubResourceBody: updateBody2})).To(Succeed())
+		Ω(c.SubResource("status").Patch(ctx, deploy2, controllerruntimeclient.Merge, &controllerruntimeclient.SubResourcePatchOptions{SubResourceBody: updateBody2})).To(Succeed())
+		Ω(c.Delete(ctx, deploy2)).To(Succeed())
+		Ω(k8s.ClearNamespace(ctx, c, namespace)).To(Succeed())
+
 		By("Test bad resource")
 		ar := &unstructured.Unstructured{}
 		ar.SetAPIVersion("xxx")
