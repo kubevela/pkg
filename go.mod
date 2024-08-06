@@ -3,7 +3,7 @@ module github.com/kubevela/pkg
 go 1.22
 
 require (
-	cuelang.org/go v0.5.0
+	cuelang.org/go v0.9.2
 	github.com/emicklei/go-restful/v3 v3.9.0
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/go-stack/stack v1.8.1
