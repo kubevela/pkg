@@ -49,7 +49,7 @@ lacy: string
 lacy: string
 `},
 		{
-			s: ` 
+			s: `
 if true {
 	foo: int
 }
@@ -59,7 +59,7 @@ lacy: string
 foo:  int
 `},
 		{
-			s: ` 
+			s: `
 foo: int
 if foo>5{
 lacy: "=5"
@@ -187,7 +187,7 @@ parameter: {
 }
 
 wait: {
- _status: true 
+ _status: true
  continue: script(parameter.continue)
 }
 
@@ -201,7 +201,7 @@ parameter: {
 }
 
 wait: {
- _status: true 
+ _status: true
  if parameter.continue!=_|_{
 	continue: script(parameter["continue"])
  }
@@ -257,13 +257,13 @@ bottom: _|_
 	val := cuecontext.New().BuildFile(f)
 	s, err := toString(val)
 	r.NoError(err)
-	r.Equal(s, `a:      *10 | _
-a1:     int
-b:      *"foo" | _
-b1:     string
-c:      *true | _
-c1:     bool
-arr:    *[1, 2] | [...]
+	r.Equal(s, `a:  *10 | _
+a1: int
+b:  *"foo" | _
+b1: string
+c:  *true | _
+c1: bool
+arr: *[1, 2] | [...]
 top:    _
 bottom: _|_ // explicit error (_|_ literal) in source
 `)

@@ -61,8 +61,6 @@ jobs:
           kubebuilderOnly: false
           kubernetesVersion: v1.22.0
 
-      - name: Add go sum entry for cuex
-        run: go get github.com/kubevela/pkg/cue/cuex
 
       - name: Run unit-test
         run: make unit-test
