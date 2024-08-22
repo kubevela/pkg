@@ -51,13 +51,13 @@ func TestToRawString(t *testing.T) {
 		// +usage=x
 		param: {
 			// test comment
-			key:  *"key" | string
-			val:  int & >=0
+			key: *"key" | string
+			val: int & >=0
 			loop: *[1, 2, 3] | [...int]
 			if val > 1 {
 				loop: [2, 4, 6]
 			}
-			r: [ for i in loop {
+			r: [for i in loop {
 				strconv.FormatInt(i)
 			}]
 		}`
