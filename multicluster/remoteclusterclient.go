@@ -178,12 +178,33 @@ func (in *remoteClusterClient) RESTMapper() meta.RESTMapper {
 	return in.defaultClient.RESTMapper()
 }
 
+func (in *remoteClusterClient) convertUnstructured(obj client.Object) (*unstructured.Unstructured, error) {
+	u, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		gvk, err := apiutil.GVKForObject(obj, in.Scheme())
+		if err != nil {
+			return nil, err
+		}
+		unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
+		if err != nil {
+			return nil, err
+		}
+		u = &unstructured.Unstructured{Object: unstructuredMap}
+		u.SetGroupVersionKind(gvk)
+	}
+	return u, nil
+}
+
 // Create implements client.Client.
 func (in *remoteClusterClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.Create(ctx, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -209,9 +230,13 @@ func (in *remoteClusterClient) Create(ctx context.Context, obj client.Object, op
 // Update implements client.Client.
 func (in *remoteClusterClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.Update(ctx, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -238,9 +263,13 @@ func (in *remoteClusterClient) Update(ctx context.Context, obj client.Object, op
 // Delete implements client.Client.
 func (in *remoteClusterClient) Delete(ctx context.Context, obj client.Object, opts ...client.DeleteOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.Delete(ctx, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -263,9 +292,13 @@ func (in *remoteClusterClient) Delete(ctx context.Context, obj client.Object, op
 // DeleteAllOf implements client.Client.
 func (in *remoteClusterClient) DeleteAllOf(ctx context.Context, obj client.Object, opts ...client.DeleteAllOfOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.DeleteAllOf(ctx, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -288,9 +321,13 @@ func (in *remoteClusterClient) DeleteAllOf(ctx context.Context, obj client.Objec
 // Patch implements client.Client.
 func (in *remoteClusterClient) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.Patch(ctx, obj, patch, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -319,9 +356,13 @@ func (in *remoteClusterClient) Patch(ctx context.Context, obj client.Object, pat
 // Get implements client.Client.
 func (in *remoteClusterClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.Get(ctx, key, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	gvk := u.GroupVersionKind()
@@ -350,13 +391,21 @@ func (in *remoteClusterClient) Get(ctx context.Context, key client.ObjectKey, ob
 // List implements client.Client.
 func (in *remoteClusterClient) List(ctx context.Context, obj client.ObjectList, opts ...client.ListOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.UnstructuredList)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.List(ctx, obj, opts...)
 	}
 
 	_u := &unstructured.Unstructured{}
-	_u.SetGroupVersionKind(u.GroupVersionKind())
+	u, ok := obj.(*unstructured.UnstructuredList)
+	if ok {
+		_u.SetGroupVersionKind(u.GroupVersionKind())
+	} else {
+		gvk, err := apiutil.GVKForObject(obj, in.Scheme())
+		if err != nil {
+			return err
+		}
+		_u.SetGroupVersionKind(gvk)
+	}
 	o, err := in.getObjMeta(cluster, _u)
 	if err != nil {
 		return err
@@ -376,14 +425,22 @@ func (in *remoteClusterClient) List(ctx context.Context, obj client.ObjectList, 
 // GetSubResource for client.SubResourceClient
 func (in *remoteClusterClient) GetSubResource(ctx context.Context, obj, subResourceObj client.Object, subResource string, opts ...client.SubResourceGetOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok1 := obj.(*unstructured.Unstructured)
-	_, ok2 := subResourceObj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok1 || !ok2 {
+	if IsLocal(cluster) {
 		return in.defaultClient.SubResource(subResource).Get(ctx, obj, subResourceObj, opts...)
 	}
 
-	if subResourceObj.GetName() == "" {
-		subResourceObj.SetName(obj.GetName())
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
+	}
+
+	sub, err := in.convertUnstructured(subResourceObj)
+	if err != nil {
+		return err
+	}
+
+	if sub.GetName() == "" {
+		sub.SetName(obj.GetName())
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -401,20 +458,28 @@ func (in *remoteClusterClient) GetSubResource(ctx context.Context, obj, subResou
 		SubResource(subResource).
 		VersionedParams(getOpts.AsGetOptions(), in.paramCodec).
 		Do(ctx).
-		Into(subResourceObj)
+		Into(sub)
 }
 
 // CreateSubResource for client.SubResourceClient
 func (in *remoteClusterClient) CreateSubResource(ctx context.Context, obj, subResourceObj client.Object, subResource string, opts ...client.SubResourceCreateOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok1 := obj.(*unstructured.Unstructured)
-	_, ok2 := subResourceObj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok1 || !ok2 {
+	if IsLocal(cluster) {
 		return in.defaultClient.SubResource(subResource).Create(ctx, obj, subResourceObj, opts...)
 	}
 
-	if subResourceObj.GetName() == "" {
-		subResourceObj.SetName(obj.GetName())
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
+	}
+
+	sub, err := in.convertUnstructured(subResourceObj)
+	if err != nil {
+		return err
+	}
+
+	if sub.GetName() == "" {
+		sub.SetName(obj.GetName())
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -430,18 +495,22 @@ func (in *remoteClusterClient) CreateSubResource(ctx context.Context, obj, subRe
 		Resource(o.resource()).
 		Name(o.GetName()).
 		SubResource(subResource).
-		Body(subResourceObj).
+		Body(sub).
 		VersionedParams(createOpts.AsCreateOptions(), in.paramCodec).
 		Do(ctx).
-		Into(subResourceObj)
+		Into(sub)
 }
 
 // UpdateSubResource for client.SubResourceClient
 func (in *remoteClusterClient) UpdateSubResource(ctx context.Context, obj client.Object, subResource string, opts ...client.SubResourceUpdateOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.SubResource(subResource).Update(ctx, obj, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
@@ -477,9 +546,13 @@ func (in *remoteClusterClient) UpdateSubResource(ctx context.Context, obj client
 // PatchSubResource for client.SubResourceClient
 func (in *remoteClusterClient) PatchSubResource(ctx context.Context, obj client.Object, subResource string, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	cluster, _ := ClusterFrom(ctx)
-	u, ok := obj.(*unstructured.Unstructured)
-	if IsLocal(cluster) || !ok {
+	if IsLocal(cluster) {
 		return in.defaultClient.SubResource(subResource).Patch(ctx, obj, patch, opts...)
+	}
+
+	u, err := in.convertUnstructured(obj)
+	if err != nil {
+		return err
 	}
 
 	o, err := in.getObjMeta(cluster, u)
