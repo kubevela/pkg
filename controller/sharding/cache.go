@@ -18,26 +18,28 @@ package sharding
 
 import (
 	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // BuildCache add shard-id label selector for given typed object
-func BuildCache(scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	return BuildCacheWithOptions(cache.Options{Scheme: scheme}, shardingObjects...)
+func BuildCache(shardingObjects ...client.Object) cache.NewCacheFunc {
+	return BuildCacheWithOptions(shardingObjects...)
 }
 
 // BuildCacheWithOptions add shard-id label selector to sharding objects with options
-func BuildCacheWithOptions(opts cache.Options, shardingObjects ...client.Object) cache.NewCacheFunc {
-	if EnableSharding {
-		ls := labels.SelectorFromSet(map[string]string{LabelKubeVelaScheduledShardID: ShardID})
-		if opts.SelectorsByObject == nil {
-			opts.SelectorsByObject = map[client.Object]cache.ObjectSelector{}
+func BuildCacheWithOptions(shardingObjects ...client.Object) cache.NewCacheFunc {
+	return func(config *rest.Config, opts cache.Options) (cache.Cache, error) {
+		if EnableSharding {
+			ls := labels.SelectorFromSet(map[string]string{LabelKubeVelaScheduledShardID: ShardID})
+			if opts.ByObject == nil {
+				opts.ByObject = map[client.Object]cache.ByObject{}
+			}
+			for _, obj := range shardingObjects {
+				opts.ByObject[obj] = cache.ByObject{Label: ls}
+			}
 		}
-		for _, obj := range shardingObjects {
-			opts.SelectorsByObject[obj] = cache.ObjectSelector{Label: ls}
-		}
+		return cache.New(config, opts)
 	}
-	return cache.BuilderWithOptions(opts)
 }

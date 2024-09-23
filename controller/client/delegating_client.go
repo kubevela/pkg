@@ -40,6 +40,7 @@ type delegatingClient struct {
 
 	scheme *runtime.Scheme
 	mapper meta.RESTMapper
+	client client.Client
 }
 
 // Scheme returns the scheme this client is using.
@@ -50,6 +51,16 @@ func (d *delegatingClient) Scheme() *runtime.Scheme {
 // RESTMapper returns the rest mapper this client is using.
 func (d *delegatingClient) RESTMapper() meta.RESTMapper {
 	return d.mapper
+}
+
+// RESTMapper returns the rest mapper this client is using.
+func (d *delegatingClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return d.client.GroupVersionKindFor(obj)
+}
+
+// RESTMapper returns the rest mapper this client is using.
+func (d *delegatingClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return d.client.IsObjectNamespaced(obj)
 }
 
 // delegatingReader extend the delegatingReader from controller-runtime/pkg/client

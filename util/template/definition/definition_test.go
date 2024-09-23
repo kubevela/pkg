@@ -33,7 +33,7 @@ import (
 func TestLoadMainTemplate(t *testing.T) {
 	sc := scheme.Scheme
 	_ = v1alpha1.AddToScheme(sc)
-	cli := fake.NewFakeClientWithScheme(sc)
+	cli := fake.NewClientBuilder().WithScheme(sc).Build()
 	ctx := context.Background()
 	r := require.New(t)
 	err := cli.Create(ctx, &corev1.ConfigMap{

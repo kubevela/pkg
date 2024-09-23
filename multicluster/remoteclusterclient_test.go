@@ -58,7 +58,8 @@ var _ = Describe("Test remote multicluster client", func() {
 		Ω(err).To(Succeed())
 
 		badCfg := rest.CopyConfig(cfg)
-		badCfg.Host = ""
+		badCfg.Username = "#"
+		badCfg.BearerToken = "#"
 		_, err = multicluster.NewRemoteClusterClient(badCfg, controllerruntimeclient.Options{})
 		Ω(err).NotTo(Succeed())
 

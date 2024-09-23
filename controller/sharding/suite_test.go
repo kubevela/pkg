@@ -74,7 +74,7 @@ var _ = Describe("Test sharding", func() {
 		Ω(cli.Create(ctx, cm2)).To(Succeed())
 
 		By("Test cache")
-		store, err := sharding.BuildCache(scheme.Scheme, &corev1.ConfigMap{})(cfg, cache.Options{})
+		store, err := sharding.BuildCache(&corev1.ConfigMap{})(cfg, cache.Options{Scheme: scheme.Scheme})
 		Ω(err).To(Succeed())
 		go func() { _ = store.Start(ctx) }()
 		Eventually(func(g Gomega) {

@@ -69,6 +69,7 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	dClient := &delegatingClient{
 		scheme: mClient.Scheme(),
 		mapper: mClient.RESTMapper(),
+		client: mClient,
 		Reader: &delegatingReader{
 			CacheReader:            mCache,
 			ClientReader:           mClient,

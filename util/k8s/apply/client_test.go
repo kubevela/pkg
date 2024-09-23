@@ -44,8 +44,8 @@ func TestApplyClientUnstructured(t *testing.T) {
 	require.NoError(t, err)
 	_ctx := context.Background()
 	require.NoError(t, cli.Create(_ctx, deploy))
-	require.Equal(t, int64(1), deploy.Object["spec"].(map[string]interface{})["replicas"])
-	require.Equal(t, int64(1), deploy.Object["status"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, int64(1), deploy.Object["spec"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, int64(1), deploy.Object["status"].(map[string]interface{})["replicas"])
 
 	deploy.Object["spec"].(map[string]interface{})["replicas"] = 3
 	deploy.Object["status"].(map[string]interface{})["replicas"] = 3
