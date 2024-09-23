@@ -19,6 +19,7 @@ package client_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -56,6 +57,7 @@ var _ = Describe("Test clients", func() {
 			Ω(_cache.Start(ctx)).To(Succeed())
 		}()
 
+		Eventually(func() bool { return _cache.WaitForCacheSync(ctx) }).WithTimeout(time.Second).Should(BeTrue(), "cache should be synced within a second")
 		velaclient.CachedGVKs = "Deployment.apps.v1"
 		_client, err := velaclient.DefaultNewControllerClient(_cache, cfg, client.Options{}, &corev1.Secret{})
 		Ω(err).To(Succeed())
