@@ -22,7 +22,7 @@ import (
 
 	"cuelang.org/go/pkg/strconv"
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/kubevela/pkg/util/slices"
 )
@@ -56,7 +56,7 @@ func TestFind(t *testing.T) {
 	val := slices.Find([]int{1, 2, 3}, func(i int) bool {
 		return i%2 == 0
 	})
-	require.Equal(t, pointer.Int(2), val)
+	require.Equal(t, ptr.To(2), val)
 	val = slices.Find([]int{1, 2, 3}, func(i int) bool {
 		return i%4 == 0
 	})

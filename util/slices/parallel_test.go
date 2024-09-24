@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/kubevela/pkg/util/slices"
 )
@@ -42,7 +42,7 @@ func TestParMap(t *testing.T) {
 		if i%2 == 0 {
 			inputs = append(inputs, input{i, i + 1, math.Sqrt(float64(i)), nil})
 		} else {
-			inputs = append(inputs, input{i, i + 1, math.Sqrt(float64(i)), pointer.Int(i)})
+			inputs = append(inputs, input{i, i + 1, math.Sqrt(float64(i)), ptr.To(i)})
 		}
 	}
 	outputs := slices.ParMap(inputs, func(i input) *float64 {
@@ -50,7 +50,7 @@ func TestParMap(t *testing.T) {
 		if i.d == nil {
 			return nil
 		}
-		return pointer.Float64(float64(i.a*i.b) + i.c + float64(*i.d))
+		return ptr.To(float64(i.a*i.b) + i.c + float64(*i.d))
 	}, slices.Parallelism(parallelism))
 	r := require.New(t)
 	r.Equal(size, len(outputs))

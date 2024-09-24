@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/kubevela/pkg/util/jsonutil"
 )
@@ -37,7 +37,7 @@ func TestParseFields(t *testing.T) {
 			Fields: []jsonutil.Field{
 				{Label: "a"},
 				{Label: `b\s`},
-				{Label: "20", Index: pointer.Int64(20)},
+				{Label: "20", Index: ptr.To(int64(20))},
 				{Label: "30"},
 				{Label: "f"},
 			},

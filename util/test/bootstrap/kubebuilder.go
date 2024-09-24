@@ -25,7 +25,7 @@ import (
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -51,7 +51,7 @@ func InitKubeBuilderForTest(options ...InitKubeConfigOption) *rest.Config {
 			ControlPlaneStartTimeout: time.Minute,
 			ControlPlaneStopTimeout:  time.Minute,
 			Scheme:                   scheme.Scheme,
-			UseExistingCluster:       pointer.Bool(false),
+			UseExistingCluster:       ptr.To(false),
 		}
 		workDir, err := os.Getwd()
 		Ω(err).To(Succeed())
@@ -97,7 +97,7 @@ type WithCRDPath string
 
 // ApplyToConfig apply to initKubeBuilderConfig
 func (op WithCRDPath) ApplyToConfig(cfg *initKubeBuilderConfig) {
-	cfg.crdPath = pointer.String(string(op))
+	cfg.crdPath = ptr.To(string(op))
 }
 
 // WithOnConfigLoaded configure the callback when rest.Config is bootstrapped

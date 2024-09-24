@@ -38,7 +38,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"k8s.io/client-go/rest"
 	controllerruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,7 +58,8 @@ var _ = Describe("Test remote multicluster client", func() {
 		Ω(err).To(Succeed())
 
 		badCfg := rest.CopyConfig(cfg)
-		badCfg.Host = ""
+		badCfg.Username = "#"
+		badCfg.BearerToken = "#"
 		_, err = multicluster.NewRemoteClusterClient(badCfg, controllerruntimeclient.Options{})
 		Ω(err).NotTo(Succeed())
 
@@ -123,7 +124,7 @@ var _ = Describe("Test remote multicluster client", func() {
 		_deploy := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32(1),
+				Replicas: ptr.To(int32(1)),
 				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test"}},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test"}},
@@ -177,7 +178,7 @@ var _ = Describe("Test remote multicluster client", func() {
 		deploy2 := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 			Spec: appsv1.DeploymentSpec{
-				Replicas: pointer.Int32(1),
+				Replicas: ptr.To(int32(1)),
 				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"app": "test2"}},
 				Template: corev1.PodTemplateSpec{
 					ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"app": "test2"}},
