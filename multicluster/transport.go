@@ -24,7 +24,7 @@ import (
 	clustergatewayconfig "github.com/oam-dev/cluster-gateway/pkg/config"
 	knet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/transport"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"github.com/kubevela/pkg/util/net"
 )
@@ -49,7 +49,7 @@ type ForCluster string
 
 // ApplyToTransport .
 func (op ForCluster) ApplyToTransport(t *Transport) {
-	t.cluster = pointer.String(string(op))
+	t.cluster = ptr.To(string(op))
 }
 
 func asTransport(rt http.RoundTripper) (*Transport, bool) {
