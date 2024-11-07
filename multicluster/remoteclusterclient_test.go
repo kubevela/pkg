@@ -48,6 +48,7 @@ import (
 	"github.com/kubevela/pkg/util/k8s"
 	"github.com/kubevela/pkg/util/rand"
 	"github.com/kubevela/pkg/util/singleton"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var _ = Describe("Test remote multicluster client", func() {
@@ -56,11 +57,6 @@ var _ = Describe("Test remote multicluster client", func() {
 		cfg := singleton.KubeConfig.Get()
 		cert, err := tls.X509KeyPair(cfg.CertData, cfg.KeyData)
 		Ω(err).To(Succeed())
-
-		badCfg := rest.CopyConfig(cfg)
-		badCfg.Host = ""
-		_, err = multicluster.NewRemoteClusterClient(badCfg, controllerruntimeclient.Options{})
-		Ω(err).NotTo(Succeed())
 
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.URL.Path, "/bad-cluster/") {
@@ -91,7 +87,9 @@ var _ = Describe("Test remote multicluster client", func() {
 			}
 			w.WriteHeader(resp.StatusCode)
 			if resp.Body != nil {
-				defer resp.Body.Close()
+				defer func(Body io.ReadCloser) {
+					_ = Body.Close()
+				}(resp.Body)
 				_, _ = io.Copy(w, resp.Body)
 			}
 		})
@@ -214,6 +212,14 @@ var _ = Describe("Test remote multicluster client", func() {
 		cms.SetAPIVersion("v1")
 		cms.SetKind("ConfigMapList")
 		Ω(c.List(multicluster.WithCluster(context.Background(), "bad-cluster"), cms)).NotTo(Succeed())
+
+		// New methods introduced in controller-runtime v0.15.x
+		namespaced, err := c.IsObjectNamespaced(deploy2)
+		Ω(namespaced).Should(BeTrue())
+		Ω(err).NotTo(HaveOccurred())
+		gvk, err := c.GroupVersionKindFor(deploy2)
+		Ω(gvk).To(Equal(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}))
+		Ω(err).NotTo(HaveOccurred())
 	})
 
 })
@@ -223,5 +229,13 @@ func TestParamCodec(t *testing.T) {
 	_, err := paramCodec.EncodeParameters(&unstructured.Unstructured{}, schema.GroupVersion{})
 	require.NoError(t, err)
 	err = paramCodec.DecodeParameters(url.Values{}, schema.GroupVersion{}, nil)
+	require.Error(t, err)
+}
+
+func TestBadConfig(t *testing.T) {
+	badCfg := rest.Config{
+		Host: "very bad guy",
+	}
+	_, err := multicluster.NewRemoteClusterClient(&badCfg, client.Options{})
 	require.Error(t, err)
 }

@@ -18,6 +18,7 @@ package tester
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/gomega"
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,7 +36,7 @@ import (
 func TestClientFunctions(c client.Client) {
 	ctx := context.Background()
 	namespace, name := "test-"+rand.RandomString(4), "fake"
-	Ω(k8s.EnsureNamespace(ctx, c, namespace)).To(Succeed())
+	Eventually(k8s.EnsureNamespace(ctx, c, namespace), 5*time.Minute).Should(Succeed()) // preventing the cache goroutine starts too slow
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{Namespace: namespace, Name: name},
 		Spec: appsv1.DeploymentSpec{

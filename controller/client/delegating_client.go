@@ -42,6 +42,20 @@ type delegatingClient struct {
 	mapper meta.RESTMapper
 }
 
+func (d *delegatingClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return apiutil.GVKForObject(obj, d.scheme)
+}
+
+func (d *delegatingClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return apiutil.IsObjectNamespaced(obj, d.scheme, d.mapper)
+}
+
 // Scheme returns the scheme this client is using.
 func (d *delegatingClient) Scheme() *runtime.Scheme {
 	return d.scheme

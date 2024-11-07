@@ -22,6 +22,9 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/spf13/pflag"
+	v1 "k8s.io/api/apps/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -53,6 +56,20 @@ var _ = Describe("Test multicluster client", func() {
 				CAFile: file.Name(),
 			},
 		})
+		Ω(err).To(Succeed())
+
+		// New methods introduced in controller-runtime v0.15.x
+		deploy := &v1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "foo",
+				Namespace: "bar",
+			},
+		}
+		namespaced, err := c.IsObjectNamespaced(deploy)
+		Ω(namespaced).Should(BeTrue())
+		Ω(err).To(Succeed())
+		gvk, err := c.GroupVersionKindFor(deploy)
+		Ω(gvk).To(Equal(schema.GroupVersionKind{Group: "apps", Version: "v1", Kind: "Deployment"}))
 		Ω(err).To(Succeed())
 
 		By("Test basic functions")

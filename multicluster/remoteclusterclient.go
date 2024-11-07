@@ -59,6 +59,20 @@ type remoteClusterClient struct {
 	restClients *ttlcache.Cache[schema.GroupVersionKind, rest.Interface]
 }
 
+func (in *remoteClusterClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return in.defaultClient.GroupVersionKindFor(obj)
+}
+
+func (in *remoteClusterClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return in.defaultClient.IsObjectNamespaced(obj)
+}
+
 // NewRemoteClusterClient create a client that will use separate RESTMappers for
 // remote cluster requests.
 func NewRemoteClusterClient(cfg *rest.Config, options client.Options) (client.Client, error) {
@@ -99,7 +113,9 @@ func (in *remoteClusterClient) GetRESTMapper(cluster string) (meta.RESTMapper, e
 	if item == nil {
 		copied := rest.CopyConfig(in.config)
 		copied.Wrap(NewTransportWrapper(ForCluster(cluster)))
-		mapper, err := apiutil.NewDynamicRESTMapper(copied)
+		// this error never happens because rest.HTTPClientFor is already called with the same config in client.New
+		httpClient, _ := rest.HTTPClientFor(copied)
+		mapper, err := apiutil.NewDynamicRESTMapper(copied, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +148,9 @@ func (in *remoteClusterClient) GetRESTClient(gvk schema.GroupVersionKind) (rest.
 	}
 	item := in.restClients.Get(gvk)
 	if item == nil {
-		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs)
+		// this error never happens because rest.HTTPClientFor is already called with the same config in client.New
+		httpClient, _ := rest.HTTPClientFor(in.config)
+		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -649,11 +667,11 @@ var _ runtime.ParameterCodec = noConversionParamCodec{}
 // it's useful in scenarios with the unstructured client and arbitrary resources.
 type noConversionParamCodec struct{}
 
-func (noConversionParamCodec) EncodeParameters(obj runtime.Object, to schema.GroupVersion) (url.Values, error) {
+func (noConversionParamCodec) EncodeParameters(obj runtime.Object, _ schema.GroupVersion) (url.Values, error) {
 	return queryparams.Convert(obj)
 }
 
-func (noConversionParamCodec) DecodeParameters(parameters url.Values, from schema.GroupVersion, into runtime.Object) error {
+func (noConversionParamCodec) DecodeParameters(_ url.Values, _ schema.GroupVersion, _ runtime.Object) error {
 	return fmt.Errorf("DecodeParameters not implemented on noConversionParamCodec")
 }
 

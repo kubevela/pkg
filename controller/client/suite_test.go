@@ -23,6 +23,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -71,5 +72,11 @@ var _ = Describe("Test clients", func() {
 			"kind":       "ConfigMapList",
 		}}
 		Ω(_client.List(_ctx, objs)).To(Succeed())
+		gvk, err := _client.GroupVersionKindFor(obj)
+		Ω(gvk).To(Equal(schema.GroupVersionKind{Group: "", Version: "v1", Kind: "ConfigMap"}))
+		Ω(err).To(Succeed())
+		namespaced, err := _client.IsObjectNamespaced(obj)
+		Ω(namespaced).To(BeTrue())
+		Ω(err).To(Succeed())
 	})
 })

@@ -44,8 +44,8 @@ func TestApplyClientUnstructured(t *testing.T) {
 	require.NoError(t, err)
 	_ctx := context.Background()
 	require.NoError(t, cli.Create(_ctx, deploy))
-	require.Equal(t, int64(1), deploy.Object["spec"].(map[string]interface{})["replicas"])
-	require.Equal(t, int64(1), deploy.Object["status"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 1, deploy.Object["spec"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 1, deploy.Object["status"].(map[string]interface{})["replicas"])
 
 	deploy.Object["spec"].(map[string]interface{})["replicas"] = 3
 	deploy.Object["status"].(map[string]interface{})["replicas"] = 3
@@ -55,13 +55,13 @@ func TestApplyClientUnstructured(t *testing.T) {
 	_deploy.SetAPIVersion("apps/v1")
 	_deploy.SetKind("Deployment")
 	require.NoError(t, cli.Get(_ctx, types.NamespacedName{Namespace: "default", Name: "test"}, _deploy))
-	require.Equal(t, int64(3), _deploy.Object["spec"].(map[string]interface{})["replicas"])
-	require.Equal(t, int64(3), _deploy.Object["status"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 3, _deploy.Object["spec"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 3, _deploy.Object["status"].(map[string]interface{})["replicas"])
 
 	p := client.RawPatch(types.JSONPatchType, []byte(`[{"op":"replace","path":"/spec/replicas","value":5},{"op":"replace","path":"/status/replicas","value":5}]`))
 	require.NoError(t, cli.Patch(_ctx, _deploy, p))
-	require.Equal(t, int64(5), _deploy.Object["spec"].(map[string]interface{})["replicas"])
-	require.Equal(t, int64(5), _deploy.Object["status"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 5, _deploy.Object["spec"].(map[string]interface{})["replicas"])
+	require.EqualValues(t, 5, _deploy.Object["status"].(map[string]interface{})["replicas"])
 }
 
 func TestApplyClientStructured(t *testing.T) {

@@ -23,21 +23,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// BuildCache add shard-id label selector for given typed object
-func BuildCache(scheme *runtime.Scheme, shardingObjects ...client.Object) cache.NewCacheFunc {
-	return BuildCacheWithOptions(cache.Options{Scheme: scheme}, shardingObjects...)
-}
-
-// BuildCacheWithOptions add shard-id label selector to sharding objects with options
-func BuildCacheWithOptions(opts cache.Options, shardingObjects ...client.Object) cache.NewCacheFunc {
+// BuildCacheOptionsWithShardingObjects builds a cache.Options struct putting sharding objects in ByObject.Label.
+func BuildCacheOptionsWithShardingObjects(scheme *runtime.Scheme, shardingObjects ...client.Object) cache.Options {
+	opts := cache.Options{Scheme: scheme}
 	if EnableSharding {
 		ls := labels.SelectorFromSet(map[string]string{LabelKubeVelaScheduledShardID: ShardID})
-		if opts.SelectorsByObject == nil {
-			opts.SelectorsByObject = map[client.Object]cache.ObjectSelector{}
+		if opts.ByObject == nil {
+			opts.ByObject = map[client.Object]cache.ByObject{}
 		}
 		for _, obj := range shardingObjects {
-			opts.SelectorsByObject[obj] = cache.ObjectSelector{Label: ls}
+			opts.ByObject[obj] = cache.ByObject{Label: ls}
 		}
 	}
-	return cache.BuilderWithOptions(opts)
+	return opts
 }

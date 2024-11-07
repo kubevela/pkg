@@ -23,6 +23,7 @@ import (
 	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,6 +34,20 @@ type gatedClient struct {
 	base    client.Client
 	gateway client.Client
 	writer  *gatedStatusWriter
+}
+
+func (m *gatedClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return m.base.GroupVersionKindFor(obj)
+}
+
+func (m *gatedClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	// This new method is introduced when upgrading controller-runtime to version 0.16.x.
+	// As there are currently no use cases, this is just a temporary implementation.
+	// If this method needs to be used in the future, please re-implement it according to actual requirements.
+	return m.base.IsObjectNamespaced(obj)
 }
 
 // gatedStatusWriter use base writer to handle hub cluster requests and
