@@ -23,7 +23,6 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
 
@@ -76,19 +75,19 @@ func monitor(ctx context.Context, verb string, obj runtime.Object) func() {
 
 // monitorCache records time costs in metrics when execute function calls
 type monitorCache struct {
-	cache.Cache
+	client.Reader
 }
 
 func (c *monitorCache) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	cb := monitor(ctx, "GetCache", obj)
 	defer cb()
-	return c.Cache.Get(ctx, key, obj, opts...)
+	return c.Reader.Get(ctx, key, obj, opts...)
 }
 
 func (c *monitorCache) List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error {
 	cb := monitor(ctx, "ListCache", list)
 	defer cb()
-	return c.Cache.List(ctx, list, opts...)
+	return c.Reader.List(ctx, list, opts...)
 }
 
 // monitorClient records time costs in metrics when execute function calls

@@ -23,6 +23,7 @@ import (
 	clustergatewayv1alpha1 "github.com/oam-dev/cluster-gateway/pkg/apis/cluster/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -119,6 +120,14 @@ func (m *gatedClient) Scheme() *runtime.Scheme {
 
 func (m *gatedClient) RESTMapper() meta.RESTMapper {
 	return m.base.RESTMapper()
+}
+
+func (m *gatedClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return m.base.GroupVersionKindFor(obj)
+}
+
+func (m *gatedClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return m.base.IsObjectNamespaced(obj)
 }
 
 func (m *gatedStatusWriter) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {

@@ -22,9 +22,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
 	"github.com/kubevela/pkg/multicluster"
 )
@@ -34,8 +32,10 @@ var (
 	CachedGVKs = ""
 )
 
+var _ client.NewClientFunc = DefaultNewControllerClient
+
 // DefaultNewControllerClient function for creating controller client
-func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options client.Options, uncachedObjects ...client.Object) (c client.Client, err error) {
+func DefaultNewControllerClient(config *rest.Config, options client.Options) (c client.Client, err error) {
 	rawClient, err := multicluster.NewDefaultClient(config, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get raw client: %w", err)
@@ -43,11 +43,11 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	rawClient = WrapDefaultTimeoutClient(rawClient)
 
 	mClient := &monitorClient{rawClient}
-	mCache := &monitorCache{cache}
+	mCache := &monitorCache{options.Cache.Reader}
 
 	uncachedStructuredGVKs := map[schema.GroupVersionKind]struct{}{}
-	for _, obj := range uncachedObjects {
-		gvk, err := apiutil.GVKForObject(obj, mClient.Scheme())
+	for _, obj := range options.Cache.DisableFor {
+		gvk, err := mClient.GroupVersionKindFor(obj)
 		if err != nil {
 			return nil, err
 		}
@@ -69,6 +69,7 @@ func DefaultNewControllerClient(cache cache.Cache, config *rest.Config, options 
 	dClient := &delegatingClient{
 		scheme: mClient.Scheme(),
 		mapper: mClient.RESTMapper(),
+		client: mClient,
 		Reader: &delegatingReader{
 			CacheReader:            mCache,
 			ClientReader:           mClient,

@@ -20,3 +20,5 @@
 .history
 
 **apiserver.local.config/
+bin/
+coverage.txt

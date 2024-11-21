@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/kubevela/pkg/util/apiserver"
@@ -36,7 +36,7 @@ func TestGetMetadataNameInFieldSelectorFromInternalVersionListOptions(t *testing
 	options := &metainternalversion.ListOptions{}
 	require.True(t, nil == apiserver.GetMetadataNameInFieldSelectorFromInternalVersionListOptions(options))
 	options.FieldSelector = fields.SelectorFromSet(fields.Set{"metadata.name": "val"})
-	require.Equal(t, pointer.String("val"), apiserver.GetMetadataNameInFieldSelectorFromInternalVersionListOptions(options))
+	require.Equal(t, ptr.To("val"), apiserver.GetMetadataNameInFieldSelectorFromInternalVersionListOptions(options))
 }
 
 func TestBuildQueryParamsFromLabelSelector(t *testing.T) {
