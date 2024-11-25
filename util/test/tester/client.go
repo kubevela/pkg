@@ -47,6 +47,10 @@ func TestClientFunctions(c client.Client) {
 			},
 		},
 	}
+	gvk, err := c.GroupVersionKindFor(deploy)
+	Ω(err).To(Succeed())
+	Ω(gvk).To(Equal(appsv1.SchemeGroupVersion.WithKind("Deployment")))
+	Ω(c.IsObjectNamespaced(deploy)).To(BeTrue())
 	Ω(c.Create(ctx, deploy)).To(Succeed())
 	Ω(c.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, deploy)).To(Succeed())
 	Ω(c.List(ctx, &corev1.ServiceList{})).To(Succeed())
@@ -63,7 +67,7 @@ func TestClientFunctions(c client.Client) {
 	Ω(c.Delete(ctx, deploy)).To(Succeed())
 	Ω(c.DeleteAllOf(ctx, &corev1.ConfigMap{}, client.InNamespace(namespace))).To(Succeed())
 	Ω(c.Scheme().IsGroupRegistered("apps")).To(BeTrue())
-	_, err := c.RESTMapper().ResourceSingularizer("configmaps")
+	_, err = c.RESTMapper().ResourceSingularizer("configmaps")
 	Ω(err).To(Succeed())
 	Ω(k8s.ClearNamespace(ctx, c, namespace)).To(Succeed())
 }
