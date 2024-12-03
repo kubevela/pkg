@@ -99,7 +99,11 @@ func (in *remoteClusterClient) GetRESTMapper(cluster string) (meta.RESTMapper, e
 	if item == nil {
 		copied := rest.CopyConfig(in.config)
 		copied.Wrap(NewTransportWrapper(ForCluster(cluster)))
-		mapper, err := apiutil.NewDynamicRESTMapper(copied)
+		httpClient, err := rest.HTTPClientFor(copied)
+		if err != nil {
+			return nil, err
+		}
+		mapper, err := apiutil.NewDynamicRESTMapper(copied, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +136,11 @@ func (in *remoteClusterClient) GetRESTClient(gvk schema.GroupVersionKind) (rest.
 	}
 	item := in.restClients.Get(gvk)
 	if item == nil {
-		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs)
+		httpClient, err := rest.HTTPClientFor(in.config)
+		if err != nil {
+			return nil, err
+		}
+		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -176,6 +184,16 @@ func (in *remoteClusterClient) Scheme() *runtime.Scheme {
 // RESTMapper implements client.Client.
 func (in *remoteClusterClient) RESTMapper() meta.RESTMapper {
 	return in.defaultClient.RESTMapper()
+}
+
+// RESTMapper implements client.Client.
+func (in *remoteClusterClient) GroupVersionKindFor(obj runtime.Object) (schema.GroupVersionKind, error) {
+	return in.defaultClient.GroupVersionKindFor(obj)
+}
+
+// RESTMapper implements client.Client.
+func (in *remoteClusterClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
+	return in.defaultClient.IsObjectNamespaced(obj)
 }
 
 func (in *remoteClusterClient) convertUnstructured(obj client.Object) (*unstructured.Unstructured, error) {

@@ -46,7 +46,7 @@ var _ = Describe("Test clients", func() {
 
 		const path = "/trigger"
 		ch := reconciler.RegisterTriggerHandler(mgr, path, 1024)
-		svr := httptest.NewServer(mgr.GetWebhookServer().WebhookMux)
+		svr := httptest.NewServer(mgr.GetWebhookServer().WebhookMux())
 		defer svr.Close()
 
 		resp, err := http.Get(svr.URL + path)

@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/selection"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"k8s.io/utils/strings/slices"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -36,7 +36,7 @@ import (
 func GetMetadataNameInFieldSelectorFromInternalVersionListOptions(options *metainternalversion.ListOptions) *string {
 	if options != nil && options.FieldSelector != nil && !options.FieldSelector.Empty() {
 		if name, found := options.FieldSelector.RequiresExactMatch("metadata.name"); found {
-			return pointer.String(name)
+			return ptr.To(name)
 		}
 	}
 	return nil
