@@ -94,6 +94,9 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 			return value, err
 		}
 		req.Header.Set("Content-Type", runtime.ContentTypeJSON)
+		for k, v := range in.Header {
+			req.Header.Set(k, v)
+		}
 		resp, err := DefaultClient.Get().Do(req.WithContext(ctx))
 		if err != nil {
 			return value, err
