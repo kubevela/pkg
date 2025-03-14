@@ -22,6 +22,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"go.opentelemetry.io/otel/propagation"
 	"io"
 	"net/http"
 	"strings"
@@ -90,6 +91,7 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 	case v1alpha1.ProtocolHTTP, v1alpha1.ProtocolHTTPS:
 		ep := fmt.Sprintf("%s/%s", strings.TrimSuffix(in.Endpoint, "/"), in.Fn)
 		req, err := http.NewRequest(http.MethodPost, ep, bytes.NewReader(bs))
+		in.InjectHeaders(ctx, req)
 		if err != nil {
 			return value, err
 		}
@@ -115,6 +117,11 @@ func (in *ExternalProviderFn) Call(ctx context.Context, value cue.Value) (cue.Va
 		return value, err
 	}
 	return value.FillPath(cue.ParsePath(providers.ReturnsKey), ret), nil
+}
+
+// InjectHeaders Injects headers from the current span into the http request headers
+func (in *ExternalProviderFn) InjectHeaders(ctx context.Context, r *http.Request) {
+	TraceHeaderPropagator{}.Inject(ctx, propagation.HeaderCarrier(r.Header))
 }
 
 var _ ProviderFn = NativeProviderFn(nil)
