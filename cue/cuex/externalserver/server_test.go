@@ -21,7 +21,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"io"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -114,4 +118,86 @@ func TestExternalServer(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestExternalServerBaggage(t *testing.T) {
+	for name, tt := range map[string]struct {
+		IncludeBaggage bool
+	}{
+		"withBaggage": {
+			IncludeBaggage: true,
+		},
+
+		"withoutBaggage": {
+			IncludeBaggage: false,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var ctx context.Context
+			var span trace.Span
+			if tt.IncludeBaggage {
+				jsonCtx := &unstructured.Unstructured{
+					Object: map[string]interface{}{
+						"appName":   "app-name",
+						"namespace": "a-namespace",
+					},
+				}
+				ctx, span, _ = cuexruntime.StartSpanWithBaggage(context.Background(), "span", jsonCtx)
+			} else {
+				ctx, span = cuexruntime.StartSpan(context.Background(), "span")
+			}
+			defer span.End()
+
+			fn := externalserver.GenericServerProviderFn[null, propagationCheckResp](propagationCheck)
+			payload := []byte("{}")
+
+			httpReq := httptest.
+				NewRequest(http.MethodPost, "/propagationCheck", bytes.NewReader(payload)).
+				WithContext(ctx)
+
+			traceHeaderPropagator := cuexruntime.TraceHeaderPropagator{}
+			traceHeaderPropagator.Inject(ctx, propagation.HeaderCarrier(httpReq.Header))
+
+			httpResp := httptest.NewRecorder()
+
+			req := restful.NewRequest(httpReq)
+			resp := restful.NewResponse(httpResp)
+
+			fn.Call(req, resp)
+
+			var response propagationCheckResp
+			err := json.Unmarshal(httpResp.Body.Bytes(), &response)
+			require.NoError(t, err)
+			assert.Equal(t, httpResp.Code, 200)
+
+			assert.NotEmpty(t, response.TraceID)
+			assert.NotEmpty(t, response.SpanID)
+			if tt.IncludeBaggage {
+				assert.Equal(t, "app-name", response.Context["appName"])
+				assert.Equal(t, "a-namespace", response.Context["namespace"])
+			} else {
+				assert.Empty(t, response.Context)
+			}
+		})
+	}
+}
+
+type propagationCheckResp struct {
+	TraceID string                 `json:"traceID"`
+	SpanID  string                 `json:"spanID"`
+	Context map[string]interface{} `json:"context"`
+}
+
+type null struct{}
+
+func propagationCheck(ctx context.Context, input *null) (*propagationCheckResp, error) {
+	span := trace.SpanFromContext(ctx)
+	pCtx, _ := cuexruntime.GetPropagatedContext(ctx)
+	var mapCtx map[string]interface{}
+	_ = pCtx.UnmarshalContext(&mapCtx)
+	return &propagationCheckResp{
+		TraceID: span.SpanContext().TraceID().String(),
+		SpanID:  span.SpanContext().SpanID().String(),
+		Context: mapCtx,
+	}, nil
 }
