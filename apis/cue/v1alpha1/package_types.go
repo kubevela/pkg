@@ -56,6 +56,9 @@ const (
 type Provider struct {
 	Protocol ProviderProtocol `json:"protocol"`
 	Endpoint string           `json:"endpoint"`
+	// +optional
+	// +kubebuilder:default={}
+	Header map[string]string `json:"header,omitempty"`
 }
 
 // PackageList list for Package

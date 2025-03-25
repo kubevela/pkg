@@ -187,3 +187,35 @@ func TestNativeProviderFn(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "s", s)
 }
+
+func TestProviderCustomHeader(t *testing.T) {
+	headerVal := "123"
+	headers := map[string]string{
+		"x-api-key": headerVal,
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		apiKeyFromHeader := request.Header.Get("x-api-key")
+		require.Equal(t, headerVal, apiKeyFromHeader)
+		writer.WriteHeader(200)
+		writer.Write([]byte("{}"))
+	}))
+	defer server.Close()
+
+	prd := runtime.ExternalProviderFn{
+		Provider: v1alpha1.Provider{
+			Protocol: v1alpha1.ProtocolHTTP,
+			Endpoint: server.URL,
+			Header:   headers,
+		},
+	}
+	v := cuecontext.New().CompileString(`{
+		$params: input: "value"
+		$returns?: {
+			output?: string
+			...
+		}
+	}`)
+	_, err := prd.Call(context.Background(), v)
+	require.NoError(t, err, "call to ExternalProviderFn failed")
+}
