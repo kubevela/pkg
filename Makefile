@@ -2,7 +2,7 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.30.0
 
 generate:
 	go generate ./apis/...
