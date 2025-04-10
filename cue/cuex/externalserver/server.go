@@ -19,6 +19,7 @@ package externalserver
 import (
 	"context"
 	"encoding/json"
+	"github.com/kubevela/pkg/cue/cuex/runtime"
 	"io"
 	"net/http"
 
@@ -39,6 +40,8 @@ type GenericServerProviderFn[T any, U any] func(context.Context, *T) (*U, error)
 
 // Call handle rest call for given request
 func (fn GenericServerProviderFn[T, U]) Call(request *restful.Request, response *restful.Response) {
+	ctx := runtime.ContextFromHeaders(request.Request)
+	request.Request = request.Request.WithContext(ctx)
 	bs, err := io.ReadAll(request.Request.Body)
 	if err != nil {
 		_ = response.WriteError(http.StatusBadRequest, err)
