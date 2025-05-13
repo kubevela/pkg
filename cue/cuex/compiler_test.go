@@ -19,6 +19,8 @@ package cuex_test
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/assert"
+	"strings"
 	"testing"
 	"time"
 
@@ -167,4 +169,26 @@ func TestWithExtraData(t *testing.T) {
 			cuex.NewCompileConfig(cuex.WithExtraData(name, tt))
 		})
 	}
+}
+
+func TestWithIntraResolveMutation(t *testing.T) {
+	addTestParam := func(ctx context.Context, value cue.Value) (cue.Value, error) {
+		return value.FillPath(cue.ParsePath("test"), "test"), nil
+	}
+
+	tmpl := strings.TrimSpace(`
+		"key": "value"
+	`)
+
+	compiler := cuex.NewCompilerWithDefaultInternalPackages()
+	val, err := compiler.CompileStringWithOptions(context.Background(), tmpl, cuex.WithIntraResolveMutation("test", addTestParam))
+	require.NoError(t, err)
+
+	testStr, err := val.LookupPath(cue.ParsePath("test")).String()
+	require.NoError(t, err)
+	assert.Equal(t, "test", testStr)
+
+	originalVal, err := val.LookupPath(cue.ParsePath("key")).String()
+	require.NoError(t, err)
+	assert.Equal(t, "value", originalVal)
 }
