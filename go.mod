@@ -23,16 +23,16 @@ require (
 	go.opentelemetry.io/otel/sdk v1.28.0
 	go.opentelemetry.io/otel/trace v1.28.0
 	go.uber.org/automaxprocs v1.5.3
-	k8s.io/api v0.31.1
-	k8s.io/apimachinery v0.31.1
-	k8s.io/apiserver v0.31.1
-	k8s.io/client-go v0.31.1
+	k8s.io/api v0.31.10
+	k8s.io/apimachinery v0.31.10
+	k8s.io/apiserver v0.31.10
+	k8s.io/client-go v0.31.10
 	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.130.1
-	k8s.io/kubectl v0.30.10
+	k8s.io/kubectl v0.31.10
 	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
 	sigs.k8s.io/apiserver-runtime v1.1.2-0.20221102045245-fb656940062f
-	sigs.k8s.io/controller-runtime v0.19.0
+	sigs.k8s.io/controller-runtime v0.19.7
 	sigs.k8s.io/controller-tools v0.15.0
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -123,8 +123,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.31.0 // indirect
-	k8s.io/component-base v0.31.1 // indirect
-	k8s.io/kms v0.31.1 // indirect
+	k8s.io/component-base v0.31.10 // indirect
+	k8s.io/kms v0.31.10 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	open-cluster-management.io/api v0.11.0 // indirect
 	sigs.k8s.io/apiserver-network-proxy v0.0.30 // indirect
