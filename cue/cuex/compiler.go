@@ -59,6 +59,7 @@ func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, e
 type CompileConfig struct {
 	ResolveProviderFunctions bool
 	PreResolveMutators       []func(context.Context, string) (string, error)
+	IntraResolveMutators     []*withIntraResolveMutation
 }
 
 // NewCompileConfig create new CompileConfig
@@ -66,6 +67,7 @@ func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	cfg := &CompileConfig{
 		ResolveProviderFunctions: true,
 		PreResolveMutators:       nil,
+		IntraResolveMutators:     make([]*withIntraResolveMutation, 0),
 	}
 	for _, opt := range opts {
 		opt.ApplyTo(cfg)
@@ -105,6 +107,26 @@ func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
 	})
 }
 
+// WithIntraResolveMutation - Allows to add a mutation function to the compile process.
+// This runs after the initial parsing and before the resolution of provider functions (CueX).
+// This is required when provider function resolution needs access to dynamically read values, such as from Config.
+func WithIntraResolveMutation(name string, fn func(ctx context.Context, value cue.Value) (cue.Value, error)) CompileOption {
+	return &withIntraResolveMutation{
+		mutation: fn,
+		name:     name,
+	}
+}
+
+type withIntraResolveMutation struct {
+	name     string
+	mutation func(ctx context.Context, value cue.Value) (cue.Value, error)
+}
+
+// ApplyTo .
+func (in *withIntraResolveMutation) ApplyTo(cfg *CompileConfig) {
+	cfg.IntraResolveMutators = append(cfg.IntraResolveMutators, in)
+}
+
 var _ CompileOption = DisableResolveProviderFunctions{}
 
 // DisableResolveProviderFunctions disable ResolveProviderFunctions
@@ -134,6 +156,15 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 		return cue.Value{}, err
 	}
 	val := cuecontext.New().BuildInstance(bi)
+	for _, irm := range cfg.IntraResolveMutators {
+		klog.V(1).Infof("Applying Intra Resolve Mutation: %s", irm.name)
+		result, err := irm.mutation(ctx, val)
+		if err != nil {
+			klog.V(1).ErrorS(err, "Couldn't apply Intra Resolve Mutation: %s", irm.name)
+			return val, err
+		}
+		val = result
+	}
 	if cfg.ResolveProviderFunctions {
 		return in.Resolve(ctx, val)
 	}
