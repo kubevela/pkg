@@ -20,3 +20,13 @@ type Workflow struct {
 	Mode                          *workflowv1alpha1.WorkflowExecuteMode `json:"mode,omitempty"`
 	workflowv1alpha1.WorkflowSpec `json:",inline"`
 }
+
+// +kubebuilder:object:root=true
+
+// WorkflowList contains a list of Workflow
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type WorkflowList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []Workflow `json:"items"`
+}
