@@ -46,7 +46,14 @@ var (
 	DefinitionGroupVersionKind = SchemeGroupVersion.WithKind(DefinitionKind)
 )
 
+// Workflow meta
+var (
+	WorkflowKind             = "Workflow"
+	WorkflowGroupVersionKind = SchemeGroupVersion.WithKind(WorkflowKind)
+)
+
 func init() {
 	SchemeBuilder.Register(&Definition{}, &DefinitionList{})
+	SchemeBuilder.Register(&Workflow{}, &WorkflowList{})
 	_ = SchemeBuilder.AddToScheme(k8sscheme.Scheme)
 }
