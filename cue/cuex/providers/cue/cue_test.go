@@ -96,11 +96,11 @@ func TestStrategyUnify(t *testing.T) {
 			value: `containers: [{name: "x1"},{name: "x2"},...]`,
 			patch: `containers: [{name: "x2"},{name: "x1"}]`,
 			expect: `
-					containers: [{
-						name: _|_ // $returns.containers.0.name: conflicting values "x2" and "x1"
-					}, {
-						name: _|_ // $returns.containers.1.name: conflicting values "x1" and "x2"
-					}]
+				containers: [{
+					name: _|_ // containers.0.name: conflicting values "x2" and "x1"
+				}, {
+					name: _|_ // containers.1.name: conflicting values "x1" and "x2"
+				}]
 `,
 			hasErr: true,
 		},

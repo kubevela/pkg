@@ -46,12 +46,12 @@ var _ = Describe("Test Default Compiler", func() {
 		Expect(stringtools.TrimLeadingIndent(retStr)).Should(BeEquivalentTo(stringtools.TrimLeadingIndent(`
 		apiVersion: "v1"
 		kind:       "Secret"
-		stringData: {
-			ip: "127.0.0.1"
-		}
 		metadata: {
 			name:      "ip"
 			namespace: "default"
+		}
+		stringData: {
+			ip: "127.0.0.1"
 		}
 `)))
 	})

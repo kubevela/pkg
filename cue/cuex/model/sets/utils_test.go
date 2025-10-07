@@ -53,10 +53,10 @@ lacy: string
 if true {
 	foo: int
 }
-lacy: string
+	lacy: string
 `,
-			expected: `lacy: string
-foo:  int
+			expected: `foo:  int
+lacy: string
 `},
 		{
 			s: `
