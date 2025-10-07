@@ -35,7 +35,7 @@ func TestPrint(t *testing.T) {
 	}{
 		"json": {
 			Format: "json",
-			Out:    `{"x":1,"z":{"s":"str"},"y":2}`,
+			Out:    `{"x":1,"y":2,"z":{"s":"str"}}`,
 		},
 		"yaml": {
 			Format: "yaml",
@@ -50,8 +50,8 @@ func TestPrint(t *testing.T) {
 			Format: "cue",
 			Out: `
 				x: 1
-				z: s: "str"
 				y: 2
+				z: s: "str"
 			`,
 		},
 		"path": {
