@@ -1,3 +1,5 @@
+include makefiles/const.mk
+
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)

@@ -3,12 +3,12 @@ name: Clean Branch Check
 on:
   push:
     branches:
-      - master
+      - main
       - release-*
   workflow_dispatch: {}
   pull_request:
     branches:
-      - master
+      - main
       - release-*
 
 permissions:
@@ -45,6 +45,4 @@ jobs:
         uses: ./.github/actions/env-setup
 
       - name: Check Diff
-        run: |
-          export PATH=$(pwd)/bin/:$PATH
-          make check-diff
+        run: make check-diff
