@@ -1,4 +1,5 @@
 include makefiles/const.mk
+include makefiles/dependency.mk
 
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
@@ -21,7 +22,7 @@ tidy:
 unit-test: envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -coverpkg=./... -coverprofile=coverage.txt ./...
 
-lint:
+lint: golangci
 	golangci-lint run ./...
 
 reviewable: generate fmt vet tidy lint
