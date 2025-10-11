@@ -28,3 +28,9 @@ reviewable: generate fmt vet tidy lint
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+# check-diff: Execute auto-gen code commands and ensure branch is clean.
+check-diff: reviewable
+	git --no-pager diff
+	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
+	@$(OK) branch is clean
