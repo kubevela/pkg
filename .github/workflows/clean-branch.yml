@@ -1,0 +1,48 @@
+name: Clean Branch Check
+
+on:
+  push:
+    branches:
+      - main
+      - release-*
+  workflow_dispatch: {}
+  pull_request:
+    branches:
+      - main
+      - release-*
+
+permissions:
+  contents: read
+
+jobs:
+  detect-noop:
+    runs-on: ubuntu-22.04
+    outputs:
+      noop: ${{ steps.noop.outputs.should_skip }}
+    permissions:
+      actions: write
+    steps:
+      - name: Detect No-op Changes
+        id: noop
+        uses: fkirc/skip-duplicate-actions@f75f66ce1886f00957d99748a42c724f4330bdcf
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          paths_ignore: '["**.md", "**.mdx", "**.png", "**.jpg"]'
+          do_not_skip: '["workflow_dispatch", "schedule", "push"]'
+        continue-on-error: true
+
+  check-diff:
+    runs-on: ubuntu-22.04
+    needs: detect-noop
+    if: needs.detect-noop.outputs.noop != 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          submodules: true
+
+      - name: Setup Env
+        uses: ./.github/actions/env-setup
+
+      - name: Check Diff
+        run: make check-diff

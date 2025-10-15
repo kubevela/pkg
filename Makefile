@@ -1,3 +1,6 @@
+include makefiles/const.mk
+include makefiles/dependency.mk
+
 LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
@@ -19,7 +22,7 @@ tidy:
 unit-test: envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -coverpkg=./... -coverprofile=coverage.txt ./...
 
-lint:
+lint: golangci
 	golangci-lint run ./...
 
 reviewable: generate fmt vet tidy lint
@@ -28,3 +31,9 @@ reviewable: generate fmt vet tidy lint
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+# check-diff: Execute auto-gen code commands and ensure branch is clean.
+check-diff: reviewable
+	git --no-pager diff
+	git diff --quiet || ($(ERR) please run 'make reviewable' to include all changes && false)
+	@$(OK) branch is clean
