@@ -1,11 +1,11 @@
 # This file is a github code protect rule follow the codeowners https://docs.github.com/en/github/creating-cloning-and-archiving-repositories/creating-a-repository-on-github/about-code-owners#example-of-a-codeowners-file
 
-controller/         @Somefive @FogDong @anoop2811
-multicluster/       @Somefive @chivalryq @anoop2811
-monitor/            @Somefive @FogDong @leejanee @anoop2811
-util/               @Somefive @FogDong @anoop2811
-util/compression    @Somefive @charlie0129 @anoop2811
-cue/                @Somefive @FogDong @anoop2811
-apis/               @Somefive @FogDong @anoop2811
-crds/               @Somefive @FogDong @anoop2811
-hack/               @Somefive @FogDong @anoop2811
+controller/         @Somefive @FogDong @anoop2811 @briankane @jguionnet
+multicluster/       @Somefive @chivalryq @anoop2811 @briankane @jguionnet
+monitor/            @Somefive @FogDong @leejanee @anoop2811 @briankane @jguionnet
+util/               @Somefive @FogDong @anoop2811 @briankane @jguionnet
+util/compression    @Somefive @charlie0129 @anoop2811 @briankane @jguionnet
+cue/                @Somefive @FogDong @anoop2811 @briankane @jguionnet
+apis/               @Somefive @FogDong @anoop2811 @briankane @jguionnet
+crds/               @Somefive @FogDong @anoop2811 @briankane @jguionnet
+hack/               @Somefive @FogDong @anoop2811 @briankane @jguionnet
