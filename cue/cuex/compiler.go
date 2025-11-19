@@ -18,11 +18,14 @@ package cuex
 
 import (
 	"context"
+	"cuelang.org/go/cue/build"
+	compilercontext "github.com/kubevela/pkg/cue/cuex/context"
+	"github.com/kubevela/pkg/cue/cuex/interfaces"
+	"github.com/kubevela/pkg/cue/cuex/types"
 	"strings"
 	"time"
 
 	"cuelang.org/go/cue"
-	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
@@ -55,15 +58,9 @@ func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, e
 	return in.CompileStringWithOptions(ctx, src)
 }
 
-// CompileConfig config for running compile process
-type CompileConfig struct {
-	ResolveProviderFunctions bool
-	PreResolveMutators       []func(context.Context, string) (string, error)
-}
-
 // NewCompileConfig create new CompileConfig
-func NewCompileConfig(opts ...CompileOption) *CompileConfig {
-	cfg := &CompileConfig{
+func NewCompileConfig(opts ...interfaces.CompileOption) *types.CompileConfig {
+	cfg := &types.CompileConfig{
 		ResolveProviderFunctions: true,
 		PreResolveMutators:       nil,
 	}
@@ -73,13 +70,8 @@ func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	return cfg
 }
 
-// CompileOption options for compile cue string
-type CompileOption interface {
-	ApplyTo(*CompileConfig)
-}
-
 // WithExtraData fill the cue.Value before resolve
-func WithExtraData(key string, data interface{}) CompileOption {
+func WithExtraData(key string, data interface{}) interfaces.CompileOption {
 	return &withExtraData{
 		key:  key,
 		data: data,
@@ -92,7 +84,7 @@ type withExtraData struct {
 }
 
 // ApplyTo .
-func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
+func (in *withExtraData) ApplyTo(cfg *types.CompileConfig) {
 	cfg.PreResolveMutators = append(cfg.PreResolveMutators, func(_ context.Context, template string) (string, error) {
 		val, path := cuecontext.New().CompileString(""), cue.ParsePath(in.key)
 		if runtime.IsNil(in.data) {
@@ -105,19 +97,20 @@ func (in *withExtraData) ApplyTo(cfg *CompileConfig) {
 	})
 }
 
-var _ CompileOption = DisableResolveProviderFunctions{}
+var _ interfaces.CompileOption = DisableResolveProviderFunctions{}
 
 // DisableResolveProviderFunctions disable ResolveProviderFunctions
 type DisableResolveProviderFunctions struct{}
 
 // ApplyTo .
-func (in DisableResolveProviderFunctions) ApplyTo(cfg *CompileConfig) {
+func (in DisableResolveProviderFunctions) ApplyTo(cfg *types.CompileConfig) {
 	cfg.ResolveProviderFunctions = false
 }
 
 // CompileStringWithOptions compile given cue string with extra options
-func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, opts ...CompileOption) (cue.Value, error) {
+func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, opts ...interfaces.CompileOption) (cue.Value, error) {
 	var err error
+	compilercontext.WithCompiler(ctx, in) // set context for nested compilations
 	cfg := NewCompileConfig(opts...)
 	bi := build.NewContext().NewInstance("", nil)
 	bi.Imports = in.PackageManager.GetImports()
@@ -133,7 +126,12 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 	if err = bi.AddSyntax(f); err != nil {
 		return cue.Value{}, err
 	}
-	val := cuecontext.New().BuildInstance(bi)
+	cueCtx := compilercontext.GetCueContext(ctx)
+	if cueCtx == nil {
+		cueCtx = cuecontext.New()
+		compilercontext.WithCueContext(ctx, cueCtx) // set the cue context for nested compilations
+	}
+	val := cueCtx.BuildInstance(bi)
 	if cfg.ResolveProviderFunctions {
 		return in.Resolve(ctx, val)
 	}
@@ -239,6 +237,6 @@ func CompileString(ctx context.Context, src string) (cue.Value, error) {
 }
 
 // CompileStringWithOptions use cuex default compiler to compile cue string with options
-func CompileStringWithOptions(ctx context.Context, src string, opts ...CompileOption) (cue.Value, error) {
+func CompileStringWithOptions(ctx context.Context, src string, opts ...interfaces.CompileOption) (cue.Value, error) {
 	return DefaultCompiler.Get().CompileStringWithOptions(ctx, src, opts...)
 }
