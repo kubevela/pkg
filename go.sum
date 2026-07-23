@@ -8,8 +8,10 @@ github.com/Masterminds/semver/v3 v3.4.0 h1:Zog+i5UMtVoCU8oKka5P7i9q9HgrJeGzI9SA1
 github.com/Masterminds/semver/v3 v3.4.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cqUQ3I=
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
-github.com/anishbista60/cluster-gateway v0.0.0-20260722105355-6e33354105aa h1:vrg5eB7iStsH6mlK6TjdrtbmAk6CKDTvqmoR6/q2/e0=
-github.com/anishbista60/cluster-gateway v0.0.0-20260722105355-6e33354105aa/go.mod h1:MlH3KlWgdJxGcQlfmelBGpSyen40AkpZ9yYfhE0H/0c=
+github.com/anishbista60/apiserver-runtime v1.1.2-0.20260723054845-6136a39ae5bb h1:f6bT0RI2c08PXJSWihXMu9X3T7K6g+rfG7wxoDFM0xY=
+github.com/anishbista60/apiserver-runtime v1.1.2-0.20260723054845-6136a39ae5bb/go.mod h1:zdVMXHyDqdq06bZyckTyw7DaflZWwhouCB4ZXkolsJI=
+github.com/anishbista60/cluster-gateway v0.0.0-20260723055512-df8d33f354f5 h1:xRFlOf/18F+apSCyhKZN5YJq18wMYqoDm6efHBPtCLU=
+github.com/anishbista60/cluster-gateway v0.0.0-20260723055512-df8d33f354f5/go.mod h1:/keQWESBval7eAKFqPkM/7hfO2PZEjZPs5s0zpECR7c=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
@@ -138,8 +140,6 @@ github.com/kisielk/errcheck v1.5.0/go.mod h1:pFxgyoBC7bSaBwPgfKdkLd5X25qrDl4LWUI
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=
 github.com/klauspost/compress v1.18.0 h1:c/Cqfb0r+Yi+JtIEq73FWXVkRonBlf0CRNYc8Zttxdo=
 github.com/klauspost/compress v1.18.0/go.mod h1:2Pp+KzxcywXVXMr50+X0Q/Lsb43OQHYWRCY2AiWywWQ=
-github.com/kmodules/apiserver-runtime v1.1.2-0.20260216061920-0c9de491e728 h1:eY+Lc5xA0C3xdbVZMvIIZX+PQcokIlLEcB+cVP8JEr0=
-github.com/kmodules/apiserver-runtime v1.1.2-0.20260216061920-0c9de491e728/go.mod h1:fbmc0NF0sW+b7PKDUrP0wOxs7V2qUAsQVAgmd47jwuU=
 github.com/kr/pretty v0.2.1/go.mod h1:ipq/a2n7PKx3OHsz4KJII5eveXtPO4qwEXGdVfWzfnI=
 github.com/kr/pretty v0.3.1 h1:flRD4NNwYAUpkphVc1HcthR4KEIFJ65n8Mw5qdRn3LE=
 github.com/kr/pretty v0.3.1/go.mod h1:hoEshYVHaxMs3cyo3Yncou5ZscifuDolrwPKZanG3xk=

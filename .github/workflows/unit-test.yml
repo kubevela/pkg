@@ -12,7 +12,7 @@ on:
       - release-*
 
 env:
-  GO_VERSION: '1.25.12'
+  GO_VERSION: '1.26.0'
 
 jobs:
 
@@ -45,7 +45,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.12.2
 
       - name: Cache Go Dependencies
         uses: actions/cache@v4
