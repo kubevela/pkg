@@ -10,8 +10,8 @@ github.com/NYTimes/gziphandler v1.1.1 h1:ZUDjpQae29j0ryrS0u/B8HZfJBtBQHjqw2rQ2cq
 github.com/NYTimes/gziphandler v1.1.1/go.mod h1:n/CVRwUEOgIxrgPvAQhUUr9oeUtvrhMomdKFjzJNB0c=
 github.com/anishbista60/apiserver-runtime v1.1.2-0.20260723054845-6136a39ae5bb h1:f6bT0RI2c08PXJSWihXMu9X3T7K6g+rfG7wxoDFM0xY=
 github.com/anishbista60/apiserver-runtime v1.1.2-0.20260723054845-6136a39ae5bb/go.mod h1:zdVMXHyDqdq06bZyckTyw7DaflZWwhouCB4ZXkolsJI=
-github.com/anishbista60/cluster-gateway v0.0.0-20260723055512-df8d33f354f5 h1:xRFlOf/18F+apSCyhKZN5YJq18wMYqoDm6efHBPtCLU=
-github.com/anishbista60/cluster-gateway v0.0.0-20260723055512-df8d33f354f5/go.mod h1:/keQWESBval7eAKFqPkM/7hfO2PZEjZPs5s0zpECR7c=
+github.com/anishbista60/cluster-gateway v0.0.0-20260723071611-0ee81bcd92c6 h1:LDuO97G6+1KCsSriXhWhTsP+hF7Z7+RbPQ3OPYexRLI=
+github.com/anishbista60/cluster-gateway v0.0.0-20260723071611-0ee81bcd92c6/go.mod h1:/keQWESBval7eAKFqPkM/7hfO2PZEjZPs5s0zpECR7c=
 github.com/antlr4-go/antlr/v4 v4.13.0 h1:lxCg3LAv+EUK6t1i0y1V6/SLeUi0eKEKdhQAlS8TVTI=
 github.com/antlr4-go/antlr/v4 v4.13.0/go.mod h1:pfChB/xh/Unjila75QW7+VU4TSnWnnk9UTnmpPaOR2g=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
