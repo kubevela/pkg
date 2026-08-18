@@ -18,14 +18,13 @@ package singleton
 
 import (
 	"k8s.io/apiserver/pkg/server"
-	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 )
 
 // GenericAPIServer .
-var GenericAPIServer = NewSingleton[*builder.GenericAPIServer](nil)
+var GenericAPIServer = NewSingleton[*server.GenericAPIServer](nil)
 
 // InitGenericAPIServer load the global unique GenericAPIServer
-func InitGenericAPIServer(server *builder.GenericAPIServer) *builder.GenericAPIServer {
+func InitGenericAPIServer(server *server.GenericAPIServer) *server.GenericAPIServer {
 	GenericAPIServer.Set(server)
 	return server
 }

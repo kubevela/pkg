@@ -8,7 +8,7 @@ CNone        := $(shell printf "\033[0m")
 ERR		= echo ${TIME} ${RED}[FAIL]${CNone}
 OK		= echo ${TIME} ${GREEN}[ OK ]${CNone}
 
-GOLANGCILINT_VERSION ?= 1.60.1
+GOLANGCILINT_VERSION ?= 2.12.2
 
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))

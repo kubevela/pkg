@@ -22,7 +22,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/apiserver/pkg/server"
-	"sigs.k8s.io/apiserver-runtime/pkg/builder"
 
 	"github.com/kubevela/pkg/util/singleton"
 	"github.com/kubevela/pkg/util/test/bootstrap"
@@ -45,7 +44,7 @@ var _ = Describe("Test init", func() {
 	})
 
 	It("Test servers", func() {
-		singleton.InitGenericAPIServer(&builder.GenericAPIServer{})
+		singleton.InitGenericAPIServer(&server.GenericAPIServer{})
 		Ω(singleton.GenericAPIServer.Get()).ToNot(BeNil())
 		singleton.InitServerConfig(&server.RecommendedConfig{})
 		Ω(singleton.APIServerConfig.Get()).ToNot(BeNil())

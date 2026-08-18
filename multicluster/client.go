@@ -75,6 +75,10 @@ func (m *gatedSubResourceClient) getClientFor(ctx context.Context) client.SubRes
 	return m.gateway
 }
 
+func (m *gatedClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	return m.getClientFor(ctx).Apply(ctx, obj, opts...)
+}
+
 func (m *gatedClient) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
 	return m.getClientFor(ctx).Get(ctx, key, obj, opts...)
 }
@@ -130,6 +134,10 @@ func (m *gatedClient) IsObjectNamespaced(obj runtime.Object) (bool, error) {
 	return m.base.IsObjectNamespaced(obj)
 }
 
+func (m *gatedStatusWriter) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	return m.getWriterFor(ctx).Apply(ctx, obj, opts...)
+}
+
 func (m *gatedStatusWriter) Create(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceCreateOption) error {
 	return m.getWriterFor(ctx).Create(ctx, obj, subResource, opts...)
 }
@@ -140,6 +148,10 @@ func (m *gatedStatusWriter) Update(ctx context.Context, obj client.Object, opts 
 
 func (m *gatedStatusWriter) Patch(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.SubResourcePatchOption) error {
 	return m.getWriterFor(ctx).Patch(ctx, obj, patch, opts...)
+}
+
+func (m *gatedSubResourceClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	return m.getClientFor(ctx).Apply(ctx, obj, opts...)
 }
 
 func (m *gatedSubResourceClient) Get(ctx context.Context, obj client.Object, subResource client.Object, opts ...client.SubResourceGetOption) error {

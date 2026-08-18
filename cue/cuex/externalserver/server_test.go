@@ -20,7 +20,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
@@ -44,14 +44,14 @@ type val struct {
 
 func (in *val) MarshalJSON() ([]byte, error) {
 	if in.V == "err_bar" {
-		return nil, fmt.Errorf(in.V)
+		return nil, errors.New(in.V)
 	}
 	return json.Marshal(map[string]string{"v": in.V})
 }
 
 func foo(ctx context.Context, input *val) (*val, error) {
 	if input.V == "err" {
-		return nil, fmt.Errorf(input.V)
+		return nil, errors.New(input.V)
 	}
 	return &val{V: "foo"}, nil
 }

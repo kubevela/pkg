@@ -140,7 +140,7 @@ func (in *remoteClusterClient) GetRESTClient(gvk schema.GroupVersionKind) (rest.
 		if err != nil {
 			return nil, err
 		}
-		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs, httpClient)
+		restClient, err := apiutil.RESTClientForGVK(gvk, true, true, in.config, in.codecs, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -211,6 +211,24 @@ func (in *remoteClusterClient) convertUnstructured(obj client.Object) (*unstruct
 		u.SetGroupVersionKind(gvk)
 	}
 	return u, nil
+}
+
+// Apply implements client.Client.
+func (in *remoteClusterClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	cluster, _ := ClusterFrom(ctx)
+	if IsLocal(cluster) {
+		return in.defaultClient.Apply(ctx, obj, opts...)
+	}
+	return fmt.Errorf("Apply is not supported for remote cluster %q", cluster)
+}
+
+// ApplySubResource for client.SubResourceClient
+func (in *remoteClusterClient) ApplySubResource(ctx context.Context, obj runtime.ApplyConfiguration, subResource string, opts ...client.SubResourceApplyOption) error {
+	cluster, _ := ClusterFrom(ctx)
+	if IsLocal(cluster) {
+		return in.defaultClient.SubResource(subResource).Apply(ctx, obj, opts...)
+	}
+	return fmt.Errorf("Apply is not supported for remote cluster %q", cluster)
 }
 
 // Create implements client.Client.
@@ -610,6 +628,11 @@ var _ client.SubResourceClient = &remoteClusterSubResourceClient{}
 type remoteClusterSubResourceClient struct {
 	subResource string
 	base        *remoteClusterClient
+}
+
+// Apply implement client.SubResourceClient
+func (in *remoteClusterSubResourceClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	return in.base.ApplySubResource(ctx, obj, in.subResource, opts...)
 }
 
 // Get implement client.SubResourceClient
