@@ -89,7 +89,7 @@ func TestCollectReferences(t *testing.T) {
 		src  string
 		want []string
 	}{
-		"no reference at all":     {`{a: 1, b: "x"}`, nil},
+		"no reference at all":     {`{out: {a: 1, b: "x"}}`, nil},
 		"a plain reference":       {`{src: {v: 1}, out: src.v}`, []string{"src.v"}},
 		"one inside a string":     {`{src: {v: "x"}, out: "\(src.v)"}`, []string{"src.v"}},
 		"two in one expression":   {`{a: {v: 1}, b: {v: 2}, out: a.v + b.v}`, []string{"a.v", "b.v"}},
@@ -101,8 +101,13 @@ func TestCollectReferences(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			v := cc.CompileString(tt.src)
 			require.NoError(t, v.Err())
+			out := v.LookupPath(cue.ParsePath("out"))
+			// A source with no out in it collects nothing whatever the
+			// collection does, so a case that forgets to declare one passes
+			// without testing anything.
+			require.True(t, out.Exists(), "the case has to give collectReferences something to read")
 			var got []reference
-			require.True(t, collectReferences(v.LookupPath(cue.ParsePath("out")), &got, 0))
+			require.True(t, collectReferences(out, &got, 0))
 			keys := make([]string, 0, len(got))
 			for _, r := range got {
 				keys = append(keys, r.key)
@@ -160,9 +165,26 @@ func TestResultSyntax(t *testing.T) {
 		require.Contains(t, exprString(t, cc, expr), `"x"`)
 	})
 
-	t.Run("a Go value with no context cannot be built", func(t *testing.T) {
-		_, ok := resultSyntax(nil, map[string]any{"$returns": "x"}, false)
-		require.False(t, ok, "there is nothing to compile it with")
+	t.Run("a Go value needs no context", func(t *testing.T) {
+		expr, ok := resultSyntax(nil, map[string]any{"$returns": "x"}, false)
+		require.True(t, ok, "JSON is CUE, so it is read as syntax without building anything")
+		require.Contains(t, exprString(t, cc, expr), `"x"`)
+	})
+
+	t.Run("a nil goes the long way round", func(t *testing.T) {
+		// filling nil gives top, a field never answered, where JSON gives
+		// null, a field answered with nothing. The two are not the same, so
+		// anything holding a null is built rather than parsed.
+		type held struct {
+			Absent *string `json:"absent"`
+		}
+		_, ok := resultSyntax(nil, held{}, false)
+		require.False(t, ok, "without a context there is nothing to build it with")
+
+		expr, ok := resultSyntax(cc, held{}, false)
+		require.True(t, ok)
+		require.NotContains(t, exprString(t, cc, expr), "null",
+			"an unset pointer is top, not null")
 	})
 
 	t.Run("definitions are dropped unless asked for", func(t *testing.T) {

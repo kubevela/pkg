@@ -99,6 +99,31 @@ out: _h.$returns`},
 import "vela/base64"
 wrap: {_h: base64.#Encode & {$params: "hidden"}, out: _h.$returns}`},
 
+	// One hidden call at a time says nothing about a pass that answers
+	// several: a lone result is filled, where several are collected as syntax
+	// and unified once, and a hidden name has to be spelled as an identifier
+	// in that collection or the answer lands beside its call.
+	"several hidden calls in one pass": {Template: `
+import "vela/base64"
+_a: base64.#Encode & {$params: "a"}
+_b: base64.#Encode & {$params: "b"}
+_c: base64.#Encode & {$params: "c"}
+out: {x: _a.$returns, y: _b.$returns, z: _c.$returns}`},
+
+	"hidden and plain calls in one pass": {Template: `
+import "vela/base64"
+_hidden: base64.#Encode & {$params: "one"}
+plain:   base64.#Encode & {$params: "two"}
+out: {a: _hidden.$returns, b: plain.$returns}`},
+
+	"several hidden calls nested together": {Template: `
+import "vela/base64"
+wrap: {
+	_a:  base64.#Encode & {$params: "a"}
+	_b:  base64.#Encode & {$params: "b"}
+	out: {x: _a.$returns, y: _b.$returns}
+}`},
+
 	"optional field call": {Template: `
 import "vela/base64"
 o?: base64.#Encode & {$params: "opt"}`},
