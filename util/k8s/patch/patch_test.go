@@ -17,6 +17,7 @@ limitations under the License.
 package patch_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	"github.com/kubevela/pkg/util/jsonutil"
 	"github.com/kubevela/pkg/util/k8s/patch"
 	"github.com/kubevela/pkg/util/test/object"
 )
@@ -153,7 +155,11 @@ func TestThreeWayMerge(t *testing.T) {
 			r.NoError(err)
 			data, err := result.Data(nil)
 			r.NoError(err)
-			r.Equal(tc.result, string(data))
+			m1, m2 := map[string]any{}, map[string]any{}
+			r.NoError(json.Unmarshal([]byte(tc.result), &m1))
+			r.NoError(json.Unmarshal(data, &m2))
+			jsonutil.DropField(m2, "metadata", "annotations", "last-applied/time")
+			r.Equal(m1, m2)
 		})
 	}
 }
@@ -223,6 +229,22 @@ func TestGetOriginalConfiguration(t *testing.T) {
 		"LastAppliedConfigAnnotationNotFound": {
 			reason: "No error should be returned if cannot find last-applied-config annotaion",
 			obj:    objNoAnno,
+		},
+		"Skip": {
+			obj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"annotations": map[string]interface{}{"last-applied/config": "skip"},
+				},
+			}},
+			wantConfig: "",
+		},
+		"Normal": {
+			obj: &unstructured.Unstructured{Object: map[string]interface{}{
+				"metadata": map[string]interface{}{
+					"annotations": map[string]interface{}{"last-applied/config": `{"a":"b"}`},
+				},
+			}},
+			wantConfig: `{"a":"b"}`,
 		},
 	}
 
