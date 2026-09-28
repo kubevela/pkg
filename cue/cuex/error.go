@@ -51,7 +51,15 @@ type FunctionCallError struct {
 
 // Error .
 func (e FunctionCallError) Error() string {
-	return fmt.Sprintf("function call error for %s: %s (value: %s)", e.Path, e.Err.Error(), e.Value)
+	s := "function call error"
+	if e.Path != "" {
+		s += " for " + e.Path
+	}
+	s += ": " + e.Err.Error()
+	if e.Value != "" {
+		s += " (value: " + e.Value + ")"
+	}
+	return s
 }
 
 // NewFunctionCallError create a new error for executing resolved function call
@@ -59,7 +67,10 @@ func NewFunctionCallError(v cue.Value, err error) FunctionCallError {
 	path := v.Path().String()
 	s, e := util.ToString(v)
 	if e != nil {
-		s = e.Error()
+		// The value could not be rendered. Leave it out instead of
+		// substituting the formatting error, which reads as though the
+		// failure came from the value itself.
+		s = ""
 	}
 	return FunctionCallError{Path: path, Value: s, Err: err}
 }
