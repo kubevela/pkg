@@ -36,7 +36,11 @@ package http
 	...
 }
 
-#Get: #Do & {$params: method: "GET"}
+// A GET changes nothing at the far end, so several may be in flight at once
+// where a template asks with @concurrency. The rest keep to one at a time: the
+// resolver would otherwise be free to reorder a POST against a DELETE, and
+// only the caller knows whether that is safe.
+#Get: #Do & {$params: method: "GET", #config: maxPerRender: 16}
 
 #Post: #Do & {$params: method: "POST"}
 

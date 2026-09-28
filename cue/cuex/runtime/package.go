@@ -80,10 +80,13 @@ func (in *externalPackage) GetProviderFn(do string) ProviderFn {
 	if in.src.Spec.Provider == nil {
 		return nil
 	}
-	return &ExternalProviderFn{
+	// An external call is a request to an endpoint and holds nothing shared
+	// with its siblings, so a template asking for @concurrency gets it, up to
+	// whatever ceiling the function's own definition declares.
+	return Concurrent(&ExternalProviderFn{
 		Provider: *in.src.Spec.Provider,
 		Fn:       do,
-	}
+	})
 }
 
 func (in *externalPackage) GetName() string {

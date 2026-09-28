@@ -94,5 +94,7 @@ var template string
 
 // Package .
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"do": cuexruntime.GenericProviderFn[DoParams, DoReturns](Do),
+	// A request holds nothing shared with the others and spends its time waiting
+	// on the network, so a template asking for @concurrency gets it.
+	"do": cuexruntime.Concurrent(cuexruntime.GenericProviderFn[DoParams, DoReturns](Do)),
 }))

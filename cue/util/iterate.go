@@ -22,8 +22,6 @@ import (
 	"strings"
 
 	"cuelang.org/go/cue"
-
-	"github.com/kubevela/pkg/util/slices"
 )
 
 const orderKey = "step"
@@ -35,36 +33,87 @@ func Iterate(value cue.Value, fn func(v cue.Value) (stop bool)) (stop bool) {
 	if strings.Contains(value.Path().String(), "#") {
 		return false
 	}
-	values := FieldValues(value)
-	for _, val := range values {
-		if Iterate(val, fn) {
+	return iterate(value, fn)
+}
+
+// iterate walks the value testing the selector it descends through, rather
+// than rebuilding and stringifying each node's whole path from the root to
+// find a "#" in it.
+func iterate(value cue.Value, fn func(cue.Value) bool) bool {
+	for _, f := range fields(value) {
+		if isDefinition(f.selector) {
+			continue
+		}
+		if iterate(f.value, fn) {
 			return true
 		}
 	}
 	return fn(value)
 }
 
-// FieldValues the field values of the given value
-// If the given value is a list, all its items will be returned
-// If the given value is a map, all its key-value entries will be returned
-// The returned values will be sorted in the order of their "step" attribute
-func FieldValues(value cue.Value) []cue.Value {
-	var it *cue.Iterator
+// isDefinition reports what the walk used to test as a "#" anywhere in the
+// node's path. Checking the one selector being descended into is equivalent,
+// since the walk never reaches a node without descending through its parents.
+func isDefinition(sel cue.Selector) bool {
+	if sel.IsDefinition() {
+		return true
+	}
+	// a quoted label may still spell a "#" without being a definition
+	return sel.LabelType() == cue.StringLabel && strings.Contains(sel.Unquoted(), "#")
+}
+
+type field struct {
+	selector cue.Selector
+	value    cue.Value
+}
+
+// fields returns the field values of the given value paired with the selector
+// that reaches them, in the order FieldValues would return them.
+func fields(value cue.Value) []field {
+	var out []field
 	switch value.Kind() {
 	case cue.ListKind:
-		_it, _ := value.List()
-		it = &_it
+		it, err := value.List()
+		if err != nil {
+			return nil
+		}
+		for i := 0; it.Next(); i++ {
+			out = append(out, field{cue.Index(i), it.Value()})
+		}
 	default:
-		it, _ = value.Fields(cue.Optional(true), cue.Hidden(true))
+		it, err := value.Fields(cue.Optional(true), cue.Hidden(true))
+		if err != nil {
+			return nil
+		}
+		for it.Next() {
+			out = append(out, field{it.Selector(), it.Value()})
+		}
 	}
-	values := slices.IterToArray[cue.Iterator, cue.Value](it)
-	sort.Slice(values, func(i, j int) bool {
-		xOrder, yOrder := values[i].Attribute(orderKey), values[j].Attribute(orderKey)
-		x, e1 := strconv.ParseInt(xOrder.Contents(), 10, 32)
-		y, e2 := strconv.ParseInt(yOrder.Contents(), 10, 32)
+	return sortByOrder(out)
+}
+
+// sortByOrder orders fields by their "step" attribute. Templates that use no
+// step attribute - which is almost all of them - skip the sort entirely rather
+// than pay an attribute lookup per comparison.
+func sortByOrder(in []field) []field {
+	ordered := false
+	for i := range in {
+		attr := in[i].value.Attribute(orderKey)
+		if attr.Err() == nil {
+			ordered = true
+			break
+		}
+	}
+	if !ordered {
+		return in
+	}
+	sort.SliceStable(in, func(i, j int) bool {
+		xAttr, yAttr := in[i].value.Attribute(orderKey), in[j].value.Attribute(orderKey)
+		x, e1 := strconv.ParseInt(xAttr.Contents(), 10, 32)
+		y, e2 := strconv.ParseInt(yAttr.Contents(), 10, 32)
 		switch {
 		case e1 != nil && e2 != nil:
-			return i < j
+			return false
 		case e1 != nil:
 			return false
 		case e2 != nil:
@@ -73,5 +122,18 @@ func FieldValues(value cue.Value) []cue.Value {
 			return x < y
 		}
 	})
+	return in
+}
+
+// FieldValues the field values of the given value
+// If the given value is a list, all its items will be returned
+// If the given value is a map, all its key-value entries will be returned
+// The returned values will be sorted in the order of their "step" attribute
+func FieldValues(value cue.Value) []cue.Value {
+	fs := fields(value)
+	values := make([]cue.Value, len(fs))
+	for i, f := range fs {
+		values[i] = f.value
+	}
 	return values
 }
