@@ -37,3 +37,46 @@ func TestErrors(t *testing.T) {
 
 	require.Equal(t, "cuex compile resolve timeout", cuex.ResolveTimeoutErr{}.Error())
 }
+
+func TestFunctionCallErrorMessage(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		err      cuex.FunctionCallError
+		expected string
+	}{
+		{
+			name:     "path and value present",
+			err:      cuex.FunctionCallError{Path: "a.b", Value: `"c"`, Err: fmt.Errorf("err")},
+			expected: `function call error for a.b: err (value: "c")`,
+		},
+		{
+			name:     "empty path drops the for clause",
+			err:      cuex.FunctionCallError{Value: `"c"`, Err: fmt.Errorf("err")},
+			expected: `function call error: err (value: "c")`,
+		},
+		{
+			name:     "empty value drops the value clause",
+			err:      cuex.FunctionCallError{Path: "a.b", Err: fmt.Errorf("err")},
+			expected: "function call error for a.b: err",
+		},
+		{
+			name:     "empty path and value",
+			err:      cuex.FunctionCallError{Err: fmt.Errorf("err")},
+			expected: "function call error: err",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, tc.err.Error())
+		})
+	}
+}
+
+func TestNewFunctionCallErrorOmitsUnrenderableValue(t *testing.T) {
+	// A value that cannot be rendered must be left out of the message rather
+	// than replaced by the formatting failure, which reads as though the
+	// failure came from the value itself.
+	e := cuex.NewFunctionCallError(cue.Value{}, fmt.Errorf("boom"))
+	require.Empty(t, e.Value)
+	require.NotContains(t, e.Error(), "cue/format")
+	require.Equal(t, "function call error: boom", e.Error())
+}
