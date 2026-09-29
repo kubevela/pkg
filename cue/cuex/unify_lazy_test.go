@@ -43,6 +43,9 @@ func BenchmarkUnifyThenRead(b *testing.B) {
 	require.NoError(b, root.Err())
 	require.NoError(b, root.Validate()) // everything worked out once, here
 	patch := cc.CompileString(`{answer: {"$returns": "a"}}`)
+	// a patch that failed to compile is bottom, and unifying against bottom
+	// would make every arm below look fast for the wrong reason
+	require.NoError(b, patch.Err())
 
 	b.Run("unify and read nothing", func(b *testing.B) {
 		b.ReportAllocs()
