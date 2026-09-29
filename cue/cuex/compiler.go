@@ -17,7 +17,9 @@ limitations under the License.
 package cuex
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -295,7 +297,15 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 		val = result
 	}
 	if cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
-		return in.resolve(ctx, val, in.mayRevealCalls(f, cfg, imports))
+		scope := callScope(nil)
+		if !carriesValueData(cfg) && len(cfg.IntraResolveMutators) == 0 {
+			// Both can put a call where the syntax does not name it: a
+			// mutation replaces the value outright, and a cue.Value filled in
+			// can carry anything. Neither can be read from here, so neither
+			// gets a narrowed walk.
+			scope = scopeOf(f, imports)
+		}
+		return in.resolve(ctx, val, in.mayRevealCalls(f, cfg, imports), scope)
 	}
 	return val, nil
 }
@@ -499,14 +509,15 @@ func partitionData(data []*withData, src string, f *ast.File) ([]*withData, *ast
 // The previous implementation walked the whole value and re-unified it at the
 // root once per call.
 func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, error) {
-	// a caller holding only the value cannot say whether it has a
-	// comprehension in it, so assume it has
-	return in.resolve(ctx, value, true)
+	// a caller holding only the value has no syntax to read, so it can say
+	// neither whether the value has a comprehension in it nor where a call
+	// could be. Both are assumed the expensive way.
+	return in.resolve(ctx, value, true, nil)
 }
 
 // resolve is Resolve, told whether the value can grow calls it does not have
 // yet. See mayRevealCalls.
-func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool) (cue.Value, error) {
+func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool, scope callScope) (cue.Value, error) {
 	newValue := value
 	executed := map[string]bool{}
 	// what each call waits for, worked out the first time the call is seen and
@@ -518,7 +529,7 @@ func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool
 		if pastDeadline(ctx) {
 			return newValue, ResolveTimeoutErr{}
 		}
-		pending := pendingCalls(newValue, executed)
+		pending := pendingCalls(newValue, executed, scope)
 		if len(pending) == 0 {
 			break
 		}
@@ -561,9 +572,21 @@ type pendingCall struct {
 
 // pendingCalls collects every call in the value that has not run yet, in the
 // order the walk finds them, which is the order the resolver used to run them.
-func pendingCalls(value cue.Value, executed map[string]bool) []pendingCall {
+func pendingCalls(value cue.Value, executed map[string]bool, scope callScope) []pendingCall {
 	var pending []pendingCall
-	util.Iterate(value, func(v cue.Value) (stop bool) {
+	look := func(v cue.Value) (stop bool) {
+		// The walk reaches every node, and most of them are the strings and
+		// numbers a manifest is made of. #do is a field, so only something
+		// that can hold fields can be a call, and asking that is cheaper than
+		// looking a path up on a leaf that has none.
+		//
+		// Bottom is not a leaf for this purpose. A node whose contents
+		// conflict reports it, and a call whose own bookkeeping a template
+		// has contradicted is exactly such a node: skipping it would drop the
+		// call and say nothing, which is worse than the conflict.
+		if kind := v.IncompleteKind(); kind != cue.BottomKind && kind&cue.StructKind == 0 {
+			return false
+		}
 		// checked before the path, which most nodes then never need
 		fn, _ := v.LookupPath(doPath).String()
 		if fn == "" {
@@ -586,8 +609,102 @@ func pendingCalls(value cue.Value, executed map[string]bool) []pendingCall {
 			maxPerRender: declaredMaxPerRender(v),
 		})
 		return false
-	})
+	}
+	if scope == nil {
+		util.Iterate(value, look)
+		return pending
+	}
+	// The syntax named the fields a call could be under, so the rest of the
+	// value - which is the manifest being rendered, and most of the nodes -
+	// is left alone.
+	under, ok := scope.fields(value)
+	if !ok {
+		util.Iterate(value, look)
+		return pending
+	}
+	for _, each := range under {
+		util.Iterate(each, look)
+	}
 	return pending
+}
+
+// fields is the values the scope names, as the value now stands, and whether
+// they could be found at all.
+//
+// A field the scope names but the value has not got is simply not there to
+// walk, which is what a template declaring something only under a
+// comprehension looks like before the comprehension has anything to go on.
+func (in callScope) fields(value cue.Value) ([]cue.Value, bool) {
+	if len(in) == 0 {
+		return nil, true
+	}
+	if out, ok := in.lookup(value); ok {
+		return out, true
+	}
+	return in.enumerate(value)
+}
+
+// lookup finds the scope's fields by name.
+//
+// Enumerating the value's fields instead costs the whole template: asking a
+// struct what its fields are finalises every one of them, and at the root
+// every one of them is the manifest being rendered. Looking a name up reaches
+// the one field.
+//
+// It reports false, so the caller enumerates, for a name it cannot spell as a
+// selector or one the value has not got. Not got covers both a field that is
+// genuinely absent and a label whose spelling this did not guess, and the two
+// cannot be told apart from here: enumerating settles it either way.
+func (in callScope) lookup(value cue.Value) ([]cue.Value, bool) {
+	out := make([]cue.Value, 0, len(in))
+	for _, name := range in {
+		var sel cue.Selector
+		switch {
+		case strings.HasPrefix(name, "#"), strings.HasPrefix(name, "_#"):
+			sel = cue.Def(name)
+		case strings.HasPrefix(name, "_"):
+			// a hidden label belongs to the package that wrote it, and the
+			// syntax alone does not say which that is
+			return nil, false
+		default:
+			sel = cue.Str(name)
+		}
+		field := value.LookupPath(cue.MakePath(sel))
+		if !field.Exists() {
+			return nil, false
+		}
+		out = append(out, field)
+	}
+	return out, true
+}
+
+// enumerate is lookup's fallback, reading the fields the value has rather than
+// the names the syntax gave.
+//
+// The names come from the syntax and the selectors from the value, and the two
+// spell some labels differently: a quoted field is my-field in the syntax and
+// "my-field" as a selector. Both spellings are tried.
+func (in callScope) enumerate(value cue.Value) ([]cue.Value, bool) {
+	it, err := value.Fields(cue.Optional(true), cue.Hidden(true))
+	if err != nil {
+		return nil, false
+	}
+	named := make(map[string]bool, len(in))
+	for _, name := range in {
+		named[name] = true
+	}
+	out := make([]cue.Value, 0, len(in))
+	for it.Next() {
+		sel := it.Selector()
+		if named[sel.String()] {
+			out = append(out, it.Value())
+			continue
+		}
+		if sel.LabelType() == cue.StringLabel && named[sel.Unquoted()] {
+			out = append(out, it.Value())
+		}
+	}
+	return out, true
 }
 
 // concurrencyAt reads how many calls a template will have running at once
@@ -722,26 +839,20 @@ func (in *Compiler) runLevel(
 	// looking a provider up early, which would report a missing one before
 	// calls ahead of it in the walk had run.
 	runnable := make([]bool, len(level))
-	count := 0
+	some := false
 	for i, call := range level {
 		if ready(call, pending, stillPending, executed, waitingFor) {
 			runnable[i] = true
-			count++
+			some = true
 		}
 	}
-	if count == 0 {
+	if !some {
 		// Every call is waiting on a value none of them can produce - a cycle,
 		// or input that will never be filled. Run the first so the caller gets
 		// the error the call itself reports, as it did when calls ran one at a
 		// time.
 		runnable[0] = true
-		count = 1
 	}
-	// One result is placed on its own, so it is worth having as a Go value:
-	// that saves the function building a cue.Value the resolver would only
-	// rebuild. Several are collected as syntax and converted together, and a
-	// Go value has no syntax short of converting it twice.
-	asResult := count == 1
 
 	var results []callResult
 	var blocked []pendingCall
@@ -778,7 +889,7 @@ func (in *Compiler) runLevel(
 		if !fromGo {
 			opaque = true
 		}
-		ret, err := callProvider(ctx, fn, call, asResult)
+		ret, err := callProvider(ctx, fn, call)
 		if err != nil {
 			return applyResults(value, results), nil, opaque, err
 		}
@@ -949,13 +1060,17 @@ func runTogether(
 	return results, nil
 }
 
-// callProvider runs a call. Given asResult, and a function that offers it, the
-// result comes back as a Go value rather than a cue.Value: a ProviderFn has to
-// unify its result into the node it was given, and the resolver then unifies
-// that node into the value it came from, so the same result is built twice.
-func callProvider(ctx context.Context, fn cuexruntime.ProviderFn, call pendingCall, asResult bool) (any, error) {
-	returning, ok := fn.(cuexruntime.ResultProviderFn)
-	if asResult && ok {
+// callProvider runs a call, asking for a Go value from any function that
+// offers one.
+//
+// A result reaches the value as syntax either way, and the two roads there are
+// not the same length. From a Go value it is a JSON encode and a read of the
+// tokens. From a cue.Value the function first fills the result into the node
+// it was given, and the resolver then reads the syntax back out of that node,
+// building and taking apart a value neither of them wanted: for a pass of
+// eight calls, eight times the work for the same answer.
+func callProvider(ctx context.Context, fn cuexruntime.ProviderFn, call pendingCall) (any, error) {
+	if returning, ok := fn.(cuexruntime.ResultProviderFn); ok {
 		ret, err := returning.CallForResult(ctx, call.value)
 		if err != nil {
 			// the call's own node is what the error is about; a result form
@@ -1054,6 +1169,13 @@ func applyResults(value cue.Value, results []callResult) cue.Value {
 func resultSyntax(cc *cue.Context, ret any, opaque bool) (ast.Expr, bool) {
 	val, isValue := ret.(cue.Value)
 	if !isValue {
+		// A Go result is whatever JSON can hold, and JSON is CUE, so it can be
+		// parsed into syntax directly. Building it into a value and reading the
+		// syntax back out of it is three passes over the same data, and the
+		// syntax is all that is wanted.
+		if expr, ok := jsonSyntax(ret); ok {
+			return expr, true
+		}
 		if cc == nil {
 			return nil, false
 		}
@@ -1083,23 +1205,58 @@ func resultSyntax(cc *cue.Context, ret any, opaque bool) (ast.Expr, bool) {
 	}
 }
 
+// jsonSyntax reads a Go result as syntax by way of JSON.
+//
+// It reports no for anything JSON cannot hold, a NaN or an infinity, and for
+// anything that does not parse back, so the caller falls to building a value
+// as before rather than losing the result.
+//
+// A null is turned down as well, and that one is not about failing. Filling a
+// nil into a value gives top, a field that was never answered, where JSON
+// gives null, a field answered with nothing. A provider returning an unset
+// pointer means the former, so anything with a null in it goes the long way
+// round. The test is on the encoded bytes, so a string that merely reads
+// "null" goes the long way too, which costs a little and is never wrong.
+func jsonSyntax(ret any) (ast.Expr, bool) {
+	bs, err := json.Marshal(ret)
+	if err != nil || bytes.Contains(bs, nullBytes) {
+		return nil, false
+	}
+	expr, err := parser.ParseExpr("-", bs)
+	if err != nil {
+		return nil, false
+	}
+	return expr, true
+}
+
+var nullBytes = []byte("null")
+
 // overlayNode is a tree of results keyed by where they go, keeping the order
 // they were added in.
 type overlayNode struct {
-	order []string
-	kids  map[string]*overlayNode
+	order []overlayKey
+	kids  map[overlayKey]*overlayNode
 	leaf  ast.Expr
 }
 
+// overlayKey is how a child is named in the collection. The kind is part of
+// it because "_h" and _h are different fields that spell the same name, and
+// keying by the name alone merges them: a result meant for the hidden one
+// then lands in the quoted one, or the other way about, with nothing said.
+type overlayKey struct {
+	name   string
+	hidden bool
+}
+
 // set places expr at path, reporting false for a path it cannot hold - a list
-// index, or a field another result already claimed.
+// index, a definition, or a field another result already claimed.
 func (in *overlayNode) set(path cue.Path, expr ast.Expr) bool {
 	sels := path.Selectors()
 	if len(sels) == 0 {
 		return false
 	}
 	for _, sel := range sels {
-		if sel.LabelType() != cue.StringLabel {
+		if !overlayHolds(sel) {
 			return false
 		}
 	}
@@ -1108,7 +1265,10 @@ func (in *overlayNode) set(path cue.Path, expr ast.Expr) bool {
 		if node.leaf != nil {
 			return false
 		}
-		node = node.child(sel.Unquoted())
+		node = node.child(overlayKey{
+			name:   overlayName(sel),
+			hidden: sel.LabelType() == cue.HiddenLabel,
+		})
 	}
 	if node.leaf != nil || len(node.order) > 0 {
 		return false
@@ -1117,16 +1277,47 @@ func (in *overlayNode) set(path cue.Path, expr ast.Expr) bool {
 	return true
 }
 
-func (in *overlayNode) child(name string) *overlayNode {
-	if in.kids == nil {
-		in.kids = map[string]*overlayNode{}
+// overlayHolds reports whether a selector can be written as a label in the
+// collection the overlay builds.
+//
+// A hidden field can, and has to be spelled as an identifier rather than
+// quoted: a quoted "_h" is a different field from _h, so a result written
+// that way lands beside the call instead of in it. Only a hidden name from
+// the anonymous package is taken, because a hidden name belongs to the
+// package that wrote it and a label built here belongs to no package. A
+// template compiled from a file with no package clause, which is every
+// template the resolver sees, is that one.
+//
+// Everything else the overlay cannot spell goes back to being filled one at a
+// time, which is correct but costs a unify each.
+func overlayHolds(sel cue.Selector) bool {
+	switch sel.LabelType() {
+	case cue.StringLabel:
+		return true
+	case cue.HiddenLabel:
+		return sel.PkgPath() == "_"
+	default:
+		return false
 	}
-	if kid, ok := in.kids[name]; ok {
+}
+
+func overlayName(sel cue.Selector) string {
+	if sel.LabelType() == cue.HiddenLabel {
+		return sel.String()
+	}
+	return sel.Unquoted()
+}
+
+func (in *overlayNode) child(key overlayKey) *overlayNode {
+	if in.kids == nil {
+		in.kids = map[overlayKey]*overlayNode{}
+	}
+	if kid, ok := in.kids[key]; ok {
 		return kid
 	}
 	kid := &overlayNode{}
-	in.kids[name] = kid
-	in.order = append(in.order, name)
+	in.kids[key] = kid
+	in.order = append(in.order, key)
 	return kid
 }
 
@@ -1135,10 +1326,14 @@ func (in *overlayNode) expr() ast.Expr {
 		return in.leaf
 	}
 	lit := &ast.StructLit{}
-	for _, name := range in.order {
+	for _, key := range in.order {
+		var label ast.Label = ast.NewString(key.name)
+		if key.hidden {
+			label = ast.NewIdent(key.name)
+		}
 		lit.Elts = append(lit.Elts, &ast.Field{
-			Label: ast.NewString(name),
-			Value: in.kids[name].expr(),
+			Label: label,
+			Value: in.kids[key].expr(),
 		})
 	}
 	return lit

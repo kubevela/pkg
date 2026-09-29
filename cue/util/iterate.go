@@ -81,6 +81,17 @@ func fields(value cue.Value) []field {
 			out = append(out, field{cue.Index(i), it.Value()})
 		}
 	default:
+		// Most of a rendered manifest is the strings and numbers it is made
+		// of, and asking each of them for its fields means sorting a struct
+		// that is not there: Fields finalises the node and orders its labels
+		// before reporting that a scalar has none.
+		//
+		// Bottom is not a scalar for this purpose. A node whose contents
+		// conflict reports it whatever it was going to hold, so it is still
+		// asked and still reports the conflict.
+		if kind := value.IncompleteKind(); kind != cue.BottomKind && kind&cue.StructKind == 0 {
+			return nil
+		}
 		it, err := value.Fields(cue.Optional(true), cue.Hidden(true))
 		if err != nil {
 			return nil
