@@ -66,6 +66,11 @@ var between = struct {
 	clock func() time.Time
 	last  time.Time
 	calls int
+	// gen counts resets. A call stamps the clock after it has logged, by
+	// which time a reset may have happened, and writing the stamp then would
+	// put back a time the reset meant to forget while the count stayed at
+	// zero. A call only stamps if nothing was reset under it.
+	gen int
 }{clock: time.Now}
 
 // Noop does nothing and says how long it was since the last time it did
@@ -78,7 +83,7 @@ var between = struct {
 func Noop(_ context.Context, in *NoopVars) (*NoopResult, error) {
 	between.Lock()
 	now := between.clock()
-	gap, nth := time.Duration(0), between.calls+1
+	gap, nth, gen := time.Duration(0), between.calls+1, between.gen
 	if !between.last.IsZero() {
 		gap = now.Sub(between.last)
 	}
@@ -91,9 +96,12 @@ func Noop(_ context.Context, in *NoopVars) (*NoopResult, error) {
 		"sinceLastReturn", gap.String())
 
 	// Stamped after the log line rather than before it, so the next gap is
-	// the resolver's time and not this function's.
+	// the resolver's time and not this function's, and skipped if a reset
+	// happened while this call was logging.
 	between.Lock()
-	between.last = between.clock()
+	if between.gen == gen {
+		between.last = between.clock()
+	}
 	between.Unlock()
 	return &NoopResult{Returns: NoopReturns{Tag: in.Params.Tag}}, nil
 }
@@ -105,6 +113,7 @@ func Reset() {
 	defer between.Unlock()
 	between.last = time.Time{}
 	between.calls = 0
+	between.gen++
 }
 
 // Calls is how many times Noop has run since the last Reset.

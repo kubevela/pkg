@@ -83,9 +83,12 @@ func TestCanAResultReachTheNextCallWithoutTheRoot(t *testing.T) {
 
 		bs, err := format.Node(params.Syntax(cue.Final()))
 		require.NoError(t, err)
+		// Logged before the assertion, because the log is what this subtest
+		// is for: a CUE bump that changes the shape should print the shape it
+		// changed to, not stop at a failed require and say nothing.
+		t.Logf("link1 parameters as syntax: %s", bs)
 		require.Contains(t, string(bs), "link0",
 			"the reference is what a rewrite would have to find and replace")
-		t.Logf("link1 parameters as syntax: %s", bs)
 	})
 }
 
