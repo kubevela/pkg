@@ -40,6 +40,11 @@ type InputItem struct {
 type OutputItem struct {
 	ValueFrom string `json:"valueFrom"`
 	Name      string `json:"name"`
+	// Sensitive indicates whether the output contains sensitive data.
+	// When true, the output value will be stored in a Kubernetes Secret
+	// instead of a ConfigMap to prevent exposure of sensitive information.
+	// +optional
+	Sensitive bool `json:"sensitive,omitempty"`
 }
 
 // StepOutputs defines output variable of WorkflowStep

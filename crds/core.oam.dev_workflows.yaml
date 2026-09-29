@@ -94,6 +94,12 @@ spec:
                     properties:
                       name:
                         type: string
+                      sensitive:
+                        description: |-
+                          Sensitive indicates whether the output contains sensitive data.
+                          When true, the output value will be stored in a Kubernetes Secret
+                          instead of a ConfigMap to prevent exposure of sensitive information.
+                        type: boolean
                       valueFrom:
                         type: string
                     required:
@@ -146,6 +152,12 @@ spec:
                           properties:
                             name:
                               type: string
+                            sensitive:
+                              description: |-
+                                Sensitive indicates whether the output contains sensitive data.
+                                When true, the output value will be stored in a Kubernetes Secret
+                                instead of a ConfigMap to prevent exposure of sensitive information.
+                              type: boolean
                             valueFrom:
                               type: string
                           required:
