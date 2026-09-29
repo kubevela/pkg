@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -84,6 +85,28 @@ type WorkflowStep struct {
 	// +nullable
 	Mode     WorkflowMode       `json:"mode,omitempty"`
 	SubSteps []WorkflowStepBase `json:"subSteps,omitempty"`
+	// ForEach runs the step once per item. On a step-group, the whole group runs once
+	// per item.
+	// +optional
+	ForEach *ForEach `json:"forEach,omitempty"`
+}
+
+// ForEach is the list a step is repeated over. Exactly one of Items and From is set;
+// admission enforces it, since a CRD validation rule cannot read an untyped field.
+type ForEach struct {
+	// Items is the list itself. It is any JSON value rather than a list so that a
+	// KubeVela Application can give a single $( ) expression, resolved to the list
+	// before the workflow runs.
+	// +optional
+	Items *apiextensionsv1.JSON `json:"items,omitempty"`
+	// From reads the list from a workflow variable, with the same path syntax as
+	// inputs[].from.
+	// +optional
+	From string `json:"from,omitempty"`
+	// Mode is StepByStep (the default: one item at a time) or DAG (every item at once).
+	// +kubebuilder:validation:Enum=StepByStep;DAG
+	// +optional
+	Mode WorkflowMode `json:"mode,omitempty"`
 }
 
 // WorkflowSpec defines workflow steps and other attributes
