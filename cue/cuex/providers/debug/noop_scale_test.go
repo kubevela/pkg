@@ -81,7 +81,7 @@ func calling(n int) string {
 // It reports rather than asserts a duration: what it is for is reading, and a
 // wall clock threshold would only flake.
 func TestNoopCallsCostWhatTheResolverSpends(t *testing.T) {
-	c := cuex.NewCompilerWithDefaultInternalPackages()
+	c := cuex.NewCompilerWithInternalPackages(debug.Package)
 	ctx := context.Background()
 	const runs = 50
 
@@ -117,7 +117,7 @@ func TestNoopCallsCostWhatTheResolverSpends(t *testing.T) {
 // is that it does nothing, so a template that calls it thirty two times has to
 // render what the same template renders calling it none.
 func TestNoopCallsDoNotChangeTheAnswer(t *testing.T) {
-	c := cuex.NewCompilerWithDefaultInternalPackages()
+	c := cuex.NewCompilerWithInternalPackages(debug.Package)
 	ctx := context.Background()
 
 	plain, err := c.CompileString(ctx, calling(0))

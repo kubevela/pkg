@@ -103,7 +103,8 @@ func TestTheTwoRoadsAgree(t *testing.T) {
 	require.Len(t, pending, 3)
 	fn, err := providerFn(providers, pending[0])
 	require.NoError(t, err)
-	returning := fn.(cuexruntime.ResultProviderFn)
+	returning, ok := fn.(cuexruntime.ResultProviderFn)
+	require.True(t, ok, "a provider that stopped offering the result form should fail the test, not panic it")
 
 	for _, call := range pending {
 		asValue, err := fn.Call(ctx, call.value)

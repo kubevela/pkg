@@ -116,6 +116,23 @@ _hidden: base64.#Encode & {$params: "one"}
 plain:   base64.#Encode & {$params: "two"}
 out: {a: _hidden.$returns, b: plain.$returns}`},
 
+	// The same spelling, two different fields. Collected under one key they
+	// merge and one of the answers lands in the other's field.
+	"a hidden name beside a quoted one that spells it the same": {Template: `
+import "vela/base64"
+a: {
+	"_h": {x: base64.#Encode & {$params: "quoted"}}
+	_h:   {y: base64.#Encode & {$params: "hidden"}}
+	out:  _h.y.$returns
+}`},
+
+	// The file is the call: its #do is at the root, where the scope has no
+	// field name to hang it on.
+	"the template is the call": {Template: `
+#do:       "encode"
+#provider: "base64"
+$params:   "root"`},
+
 	"several hidden calls nested together": {Template: `
 import "vela/base64"
 wrap: {

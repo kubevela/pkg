@@ -66,6 +66,48 @@ out: {
 		"a quoted _first would mean the answer went next to the call rather than into it")
 }
 
+// A hidden name and a quoted one that spell the same thing are different
+// fields, and the collection has to keep them apart. Keyed by the name alone
+// they merge, and one of the two answers then goes to the wrong field with
+// nothing said about it.
+func TestHiddenAndQuotedSameSpelling(t *testing.T) {
+	c := cuex.NewCompilerWithDefaultInternalPackages()
+	v, err := c.CompileString(context.Background(), `
+import "vela/base64"
+a: {
+	"_h": {x: base64.#Encode & {$params: "quoted"}}
+	_h:   {y: base64.#Encode & {$params: "hidden"}}
+	fromHidden: _h.y.$returns
+}
+fromQuoted: a["_h"].x.$returns
+`)
+	require.NoError(t, err)
+
+	got, err := v.LookupPath(cue.ParsePath("a.fromHidden")).String()
+	require.NoError(t, err, "the hidden call's answer went somewhere else")
+	require.Equal(t, "aGlkZGVu", got)
+
+	got, err = v.LookupPath(cue.ParsePath("fromQuoted")).String()
+	require.NoError(t, err)
+	require.Equal(t, "cXVvdGVk", got)
+}
+
+// A template can be the call itself, with its #do at the root rather than
+// under a field. The scope names fields, so it has no name for that one and
+// has to stand aside rather than report a template with no calls in it.
+func TestTheTemplateIsTheCall(t *testing.T) {
+	c := cuex.NewCompilerWithDefaultInternalPackages()
+	v, err := c.CompileString(context.Background(), `
+#do:       "encode"
+#provider: "base64"
+$params:   "root"
+`)
+	require.NoError(t, err)
+	got, err := v.LookupPath(cue.ParsePath("$returns")).String()
+	require.NoError(t, err, "a call at the root is still a call")
+	require.Equal(t, "cm9vdA==", got)
+}
+
 // Hidden calls used to fall out of the overlay and be filled one at a time,
 // which is a unify each and quadratic in the number of them. This is the
 // shape that showed it: the same fanout, named two ways.

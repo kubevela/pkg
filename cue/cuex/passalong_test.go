@@ -67,22 +67,25 @@ func TestCanAResultReachTheNextCallWithoutTheRoot(t *testing.T) {
 		require.Equal(t, "p", s)
 	})
 
-	t.Run("rewriting the reference out of the parameters", func(t *testing.T) {
-		// The other way: take what the call asks for as syntax, put the answer
-		// in place of the reference, and build that on its own. No reference
-		// is left, so nothing has to be in scope for it.
+	t.Run("what the parameters look like as syntax", func(t *testing.T) {
+		// The other way round would be to take what the call asks for as
+		// syntax, put the answer where the reference is, and build that on
+		// its own, with nothing left to be in scope for.
+		//
+		// The rewrite is not done here, and this does not assert that it
+		// works. What it records is the syntax the rewrite would have to read,
+		// which is the whole of why it was not built:
+		// passalong_shape_test.go takes this shape as a definition writes it
+		// and shows it arrives wrapped in export internals.
 		root := cc.CompileString(chainPair)
 		require.NoError(t, root.Err())
 		params := root.LookupPath(cue.ParsePath("link1.$params"))
 
 		bs, err := format.Node(params.Syntax(cue.Final()))
 		require.NoError(t, err)
+		require.Contains(t, string(bs), "link0",
+			"the reference is what a rewrite would have to find and replace")
 		t.Logf("link1 parameters as syntax: %s", bs)
-
-		rewritten := cc.CompileString(`"p"`)
-		s, err := rewritten.String()
-		require.NoError(t, err)
-		require.Equal(t, "p", s)
 	})
 }
 

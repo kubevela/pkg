@@ -87,6 +87,12 @@ func topLevel(f *ast.File) ([]topLevelDecl, bool) {
 		if err != nil || name == "" {
 			return nil, false
 		}
+		if name == doKey {
+			// The file itself is the call: its #do sits at the root, and the
+			// scope names fields rather than the thing holding them, so there
+			// is no name here to put in it.
+			return nil, false
+		}
 		decls = append(decls, topLevelDecl{name, field.Value})
 	}
 	return decls, true

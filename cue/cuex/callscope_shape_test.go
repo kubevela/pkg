@@ -21,6 +21,7 @@ import (
 	"strings"
 	"testing"
 
+	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/parser"
@@ -80,10 +81,14 @@ fourth: second.$returns
 		"second and third copy the call; fourth reads a field out of it")
 }
 
-// Whether looking the scope's fields up by name beats enumerating the root's,
-// and whether it keeps beating it as the scope grows. It does both, by more
-// as the scope grows, which is not what the shape of the trade suggests: one
-// enumeration against one lookup per name.
+// Whether looking the scope's fields up by name beats enumerating the root's.
+//
+// It does, by a little: about 8% at a hundred calls. An earlier version of
+// this benchmark built the value once outside the timed loop and made it look
+// like several times that, which was the first enumeration finalising the
+// root and every iteration after it reading a value already finalised. A
+// resolve never gets that; the build is inside the loop here for the same
+// reason.
 func BenchmarkLookupAgainstEnumerate(b *testing.B) {
 	c := NewCompilerWithDefaultInternalPackages()
 	imports := c.PackageManager.GetImports()
@@ -100,14 +105,25 @@ func BenchmarkLookupAgainstEnumerate(b *testing.B) {
 		bi := build.NewContext().NewInstance("", nil)
 		bi.Imports = imports
 		require.NoError(b, bi.AddSyntax(f))
-		value := cuecontext.New().BuildInstance(bi)
 		scope := scopeOf(f, imports)
 		require.Len(b, scope, n)
+
+		// The value is built inside the timed loop, not once outside it.
+		// Enumerating finalises the root, so a value built once is warm for
+		// every iteration after the first and the mean hides the cost the
+		// whole comparison is about. A resolve gets a value nobody has
+		// finalised yet, every time. The build is in both arms, so it cancels.
+		fresh := func() cue.Value {
+			bi := build.NewContext().NewInstance("", nil)
+			bi.Imports = imports
+			require.NoError(b, bi.AddSyntax(f))
+			return cuecontext.New().BuildInstance(bi)
+		}
 
 		b.Run(fmt.Sprintf("calls=%d/lookup", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if _, ok := scope.lookup(value); !ok {
+				if _, ok := scope.lookup(fresh()); !ok {
 					b.Fatal("declined")
 				}
 			}
@@ -115,7 +131,7 @@ func BenchmarkLookupAgainstEnumerate(b *testing.B) {
 		b.Run(fmt.Sprintf("calls=%d/enumerate", n), func(b *testing.B) {
 			b.ReportAllocs()
 			for i := 0; i < b.N; i++ {
-				if _, ok := scope.enumerate(value); !ok {
+				if _, ok := scope.enumerate(fresh()); !ok {
 					b.Fatal("declined")
 				}
 			}

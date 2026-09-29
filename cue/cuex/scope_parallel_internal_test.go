@@ -53,9 +53,9 @@ func scopeOfParallel(f *ast.File, imports []*build.Instance) callScope {
 
 func scopeSource(extra int) string {
 	var b strings.Builder
-	b.WriteString("import \"vela/nothing\"\n")
+	b.WriteString("import \"vela/ph\"\n")
 	b.WriteString(phaseWorkload)
-	b.WriteString("\ncall0: nothing.#Do & {$params: \"k\"}\n")
+	b.WriteString("\ncall0: ph.#Do & {$params: \"k\"}\n")
 	for i := 0; i < extra; i++ {
 		fmt.Fprintf(&b, "\nextra%d: {a: \"x\", b: [1, 2, 3], c: {d: {e: %d, f: [{g: 1}, {h: 2}]}}}\n", i, i)
 	}
@@ -70,7 +70,12 @@ func TestScopeParallelAgrees(t *testing.T) {
 	for _, extra := range []int{0, 5, 60} {
 		f, err := parser.ParseFile("-", scopeSource(extra), parser.ParseComments)
 		require.NoError(t, err)
-		require.Equal(t, scopeOf(f, imports), scopeOfParallel(f, imports))
+		want := scopeOf(f, imports)
+		// Two empty scopes agree about nothing. The source has to name a
+		// package the compiler registered, or neither side finds a call and
+		// the comparison holds whatever the parallel one does.
+		require.NotEmpty(t, want, "the fixture has to give the scope something to find")
+		require.Equal(t, want, scopeOfParallel(f, imports))
 	}
 }
 

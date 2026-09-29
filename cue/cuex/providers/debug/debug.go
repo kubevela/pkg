@@ -58,16 +58,15 @@ type NoopVars = providers.Params[NoopParams]
 // NoopResult .
 type NoopResult = providers.Returns[NoopReturns]
 
-// clock is what the gap is measured against. It is a variable so a test can
-// hold it still: the log line is diagnostic, but a test that reads it should
-// not depend on how fast the machine is.
-var clock = time.Now
-
-var between struct {
+// between is what the gap is measured against, and the clock is in here with
+// the rest of it because the resolver may run these calls alongside each
+// other: a clock read outside the lock races a test holding it still.
+var between = struct {
 	sync.Mutex
+	clock func() time.Time
 	last  time.Time
 	calls int
-}
+}{clock: time.Now}
 
 // Noop does nothing and says how long it was since the last time it did
 // nothing. The gap is what the resolver spent between two calls that spent
@@ -77,20 +76,25 @@ var between struct {
 // the last one to find what drifted, and a timestamp in the output would make
 // every render differ.
 func Noop(_ context.Context, in *NoopVars) (*NoopResult, error) {
-	now := clock()
 	between.Lock()
+	now := between.clock()
 	gap, nth := time.Duration(0), between.calls+1
 	if !between.last.IsZero() {
 		gap = now.Sub(between.last)
 	}
 	between.calls = nth
-	between.last = now
 	between.Unlock()
 
 	klog.InfoS("cuex noop call",
 		"tag", in.Params.Tag,
 		"nth", nth,
 		"sinceLastReturn", gap.String())
+
+	// Stamped after the log line rather than before it, so the next gap is
+	// the resolver's time and not this function's.
+	between.Lock()
+	between.last = between.clock()
+	between.Unlock()
 	return &NoopResult{Returns: NoopReturns{Tag: in.Params.Tag}}, nil
 }
 

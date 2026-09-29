@@ -103,12 +103,10 @@ func levelsTimed(t *testing.T, in *Compiler, ctx context.Context, value cue.Valu
 	pending := pendingCalls(newValue, executed, nil)
 	remaining := pending
 	for reread := false; len(remaining) > 0; reread = true {
-		before := newValue
 		start := time.Now()
 		next, rest, _, err := in.runLevel(ctx, newValue, providers, pending, remaining, executed, waitingFor, reread)
 		require.NoError(t, err)
 		apply += time.Since(start)
-		_ = before
 		newValue, remaining = next, rest
 		levels++
 	}

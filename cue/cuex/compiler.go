@@ -38,7 +38,6 @@ import (
 
 	"github.com/kubevela/pkg/cue/cuex/providers/base64"
 	cueext "github.com/kubevela/pkg/cue/cuex/providers/cue"
-	"github.com/kubevela/pkg/cue/cuex/providers/debug"
 	"github.com/kubevela/pkg/cue/cuex/providers/http"
 	"github.com/kubevela/pkg/cue/cuex/providers/kube"
 	cuexutil "github.com/kubevela/pkg/cue/cuex/providers/util"
@@ -1235,10 +1234,18 @@ var nullBytes = []byte("null")
 // overlayNode is a tree of results keyed by where they go, keeping the order
 // they were added in.
 type overlayNode struct {
-	order  []string
-	kids   map[string]*overlayNode
-	hidden map[string]bool
-	leaf   ast.Expr
+	order []overlayKey
+	kids  map[overlayKey]*overlayNode
+	leaf  ast.Expr
+}
+
+// overlayKey is how a child is named in the collection. The kind is part of
+// it because "_h" and _h are different fields that spell the same name, and
+// keying by the name alone merges them: a result meant for the hidden one
+// then lands in the quoted one, or the other way about, with nothing said.
+type overlayKey struct {
+	name   string
+	hidden bool
 }
 
 // set places expr at path, reporting false for a path it cannot hold - a list
@@ -1258,7 +1265,10 @@ func (in *overlayNode) set(path cue.Path, expr ast.Expr) bool {
 		if node.leaf != nil {
 			return false
 		}
-		node = node.child(overlayName(sel), sel.LabelType() == cue.HiddenLabel)
+		node = node.child(overlayKey{
+			name:   overlayName(sel),
+			hidden: sel.LabelType() == cue.HiddenLabel,
+		})
 	}
 	if node.leaf != nil || len(node.order) > 0 {
 		return false
@@ -1298,18 +1308,16 @@ func overlayName(sel cue.Selector) string {
 	return sel.Unquoted()
 }
 
-func (in *overlayNode) child(name string, hidden bool) *overlayNode {
+func (in *overlayNode) child(key overlayKey) *overlayNode {
 	if in.kids == nil {
-		in.kids = map[string]*overlayNode{}
-		in.hidden = map[string]bool{}
+		in.kids = map[overlayKey]*overlayNode{}
 	}
-	if kid, ok := in.kids[name]; ok {
+	if kid, ok := in.kids[key]; ok {
 		return kid
 	}
 	kid := &overlayNode{}
-	in.kids[name] = kid
-	in.hidden[name] = hidden
-	in.order = append(in.order, name)
+	in.kids[key] = kid
+	in.order = append(in.order, key)
 	return kid
 }
 
@@ -1318,14 +1326,14 @@ func (in *overlayNode) expr() ast.Expr {
 		return in.leaf
 	}
 	lit := &ast.StructLit{}
-	for _, name := range in.order {
-		var label ast.Label = ast.NewString(name)
-		if in.hidden[name] {
-			label = ast.NewIdent(name)
+	for _, key := range in.order {
+		var label ast.Label = ast.NewString(key.name)
+		if key.hidden {
+			label = ast.NewIdent(key.name)
 		}
 		lit.Elts = append(lit.Elts, &ast.Field{
 			Label: label,
-			Value: in.kids[name].expr(),
+			Value: in.kids[key].expr(),
 		})
 	}
 	return lit
@@ -1637,7 +1645,6 @@ func NewCompilerWithDefaultInternalPackages() *Compiler {
 		kube.Package,
 		cueext.Package,
 		cuexutil.Package,
-		debug.Package,
 	)
 }
 
