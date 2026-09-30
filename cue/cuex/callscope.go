@@ -127,11 +127,18 @@ func scopeFrom(decls []topLevelDecl, named []bool) callScope {
 			changed = true
 		}
 	}
+	// One entry per name, not per declaration. A field can be written more
+	// than once and the file unifies them, so listing the name twice makes
+	// the walk find the one call under it twice and run it twice. Against
+	// a provider that writes, that is the write happening twice.
 	scope := callScope{}
+	listed := make(map[string]bool, len(holds))
 	for _, d := range decls {
-		if holds[d.name] {
-			scope = append(scope, d.name)
+		if !holds[d.name] || listed[d.name] {
+			continue
 		}
+		listed[d.name] = true
+		scope = append(scope, d.name)
 	}
 	return scope
 }
@@ -151,20 +158,33 @@ func scopeFrom(decls []topLevelDecl, named []bool) callScope {
 //
 // Counting the second as a call puts the field holding it in the scope, and
 // then the manifest that reads that field, and then there is no scope left.
+//
+// What separates them is which field is being read. Reading $returns or
+// $params is reading a call's own bookkeeping, which only whatever made
+// the call can have written, so the reader is not itself a call. Reading
+// anything else may be reaching a call that lives under the name:
+//
+//	second: #tpl.inner
+//
+// is the first case wearing a selector, and treating every selector as
+// reading through drops it with nothing said.
 func mentions(node ast.Node, names map[string]bool) bool {
-	// the identifiers a selector or an index reads through, which are being
+	// the identifiers a selector reads an answer out of, which are being
 	// looked into rather than taken
 	readThrough := map[*ast.Ident]bool{}
 	ast.Walk(node, func(n ast.Node) bool {
-		switch expr := n.(type) {
-		case *ast.SelectorExpr:
-			if id := rootOf(expr.X); id != nil {
-				readThrough[id] = true
-			}
-		case *ast.IndexExpr:
-			if id := rootOf(expr.X); id != nil {
-				readThrough[id] = true
-			}
+		sel, is := n.(*ast.SelectorExpr)
+		if !is {
+			return true
+		}
+		name, _, err := ast.LabelName(sel.Sel)
+		if err != nil || (name != returnsKey && name != paramsKey) {
+			// reaching for something other than the answer, so whatever is
+			// under there might be a call
+			return true
+		}
+		if id := rootOf(sel.X); id != nil {
+			readThrough[id] = true
 		}
 		return true
 	}, nil)
