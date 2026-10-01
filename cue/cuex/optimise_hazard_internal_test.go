@@ -59,6 +59,8 @@ params: {mode: cfg.mode, retries: cfg.retries}
 cfg: {mode: "fast"}
 params: {mode: cfg.mode, retries: cfg.retries}
 `)
+	require.NoError(t, one.Err(),
+		"the file itself has to compile, or the error below is about something else")
 	_, err = one.LookupPath(cue.ParsePath("params.retries")).Int64()
 	t.Logf("HAZARD one declaration, reading retries: %v", err)
 	require.Error(t, err,

@@ -291,6 +291,7 @@ out: b.$returns`,
 b: #tpl.inner
 out: #tpl.inner.$returns`,
 		wantErr: "cannot reference optional field: $returns",
+		calls:   1,
 	},
 	"copied through a selector on a field": {
 		template: `holder: inner: shape.#Echo & {$params: "x"}
@@ -517,6 +518,13 @@ func TestShapesACallCanBeIn(t *testing.T) {
 			if tc.wantErr != "" {
 				require.Error(t, readErr)
 				require.Contains(t, readErr.Error(), tc.wantErr)
+				// A case that errors still says what ran. Without this
+				// the comment on a case like "the call ran at b" is a
+				// claim the case cannot check.
+				if tc.calls >= 0 {
+					require.Equal(t, tc.calls, c.count(),
+						"calls made: %v", c.order())
+				}
 				return
 			}
 			require.NoError(t, err)
