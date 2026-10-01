@@ -62,56 +62,61 @@ out: x.$returns
 		fields = append(fields, it.Selector().String())
 	}
 	t.Logf("fields on the node: %v", fields)
+
+	// One of these is read and three are there because the definition was
+	// unified in to make the call. That is the whole observation, so it is
+	// worth failing on rather than printing.
+	require.Equal(t, []string{"#do", "#provider", "$params", "$returns"}, fields,
+		"a resolved call holds its answer and the three fields that named it")
 }
 
-// TestCallNodeCost is the number the work is against: what a value holding n
-// resolved calls costs, and how much of that is the answers.
-func TestCallNodeCost(t *testing.T) {
+// What a resolved call costs against what its answer alone costs: the same
+// answers, at the same paths, with no call ever made.
+//
+// One test rather than two, because the gap is the finding and neither
+// number says anything on its own. It is also why holding every answer at
+// once is worth avoiding: most of what is held is not the answer.
+func TestACallCostsMoreThanItsAnswer(t *testing.T) {
 	c := cuex.NewCompilerWithDefaultInternalPackages()
 	ctx := context.Background()
 
-	t.Logf("%6s %12s %14s", "calls", "live heap", "per call")
-	for _, n := range []int{100, 1000, 4000} {
+	perNode := func(src string, n int) int {
 		runtime.GC()
 		var before, after runtime.MemStats
 		runtime.ReadMemStats(&before)
-
-		v, err := c.CompileString(ctx, widthTemplate(n))
+		v, err := c.CompileString(ctx, src)
 		require.NoError(t, err)
-
 		runtime.ReadMemStats(&after)
-		heap := after.HeapAlloc
-		t.Logf("%6d %10dKB %12dB", n, heap/1024, int(heap-before.HeapAlloc)/max(n, 1))
+		out := int(after.HeapAlloc-before.HeapAlloc) / max(n, 1)
 		runtime.KeepAlive(v)
+		return out
 	}
-}
 
-// TestAnswersAloneCost is the floor: the same answers at the same paths, with
-// no call ever made, so nothing of the definition is in the value. The gap
-// between this and TestCallNodeCost is what returns-only is trying to close.
-func TestAnswersAloneCost(t *testing.T) {
-	cc := cuex.NewCompilerWithDefaultInternalPackages()
-	ctx := context.Background()
-
-	t.Logf("%6s %12s %14s", "nodes", "live heap", "per node")
-	for _, n := range []int{100, 1000, 4000} {
+	answersOnly := func(n int) string {
 		src := "out: \"x\"\n"
 		for i := 0; i < n; i++ {
 			// what the call answered, at the path the call sat at
 			src += fmt.Sprintf("x%d: {$returns: %q}\n", i, base64Of(fmt.Sprintf("hello-%d", i)))
 		}
-		runtime.GC()
-		var before, after runtime.MemStats
-		runtime.ReadMemStats(&before)
-
-		v, err := cc.CompileString(ctx, src)
-		require.NoError(t, err)
-
-		runtime.ReadMemStats(&after)
-		heap := after.HeapAlloc
-		t.Logf("%6d %10dKB %12dB", n, heap/1024, int(heap-before.HeapAlloc)/max(n, 1))
-		runtime.KeepAlive(v)
+		return src
 	}
+
+	t.Logf("%6s %14s %14s %8s", "n", "per call", "per answer", "ratio")
+	var wide [2]int
+	for _, n := range []int{100, 1000, 4000} {
+		call := perNode(widthTemplate(n), n)
+		answer := perNode(answersOnly(n), n)
+		t.Logf("%6d %12dB %12dB %7.2fx", n, call, answer, float64(call)/float64(answer))
+		if n == 4000 {
+			wide = [2]int{call, answer}
+		}
+	}
+
+	// Measured around four and a half times at four thousand; asserted at
+	// twice, since both sides are heap readings and the claim is that most
+	// of a resolved call is not its answer.
+	require.Greater(t, wide[0], wide[1]*2,
+		"a resolved call should cost multiples of the answer it holds")
 }
 
 // base64Of is what vela/base64 #Encode answers for a string.
@@ -154,6 +159,7 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 	}
 
 	const n = 4000
+	cost := map[string]int{}
 	for _, shape := range shapes {
 		src := "out: \"x\"\n"
 		if shape.node == nil {
@@ -169,8 +175,24 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 		v, err := c.CompileString(ctx, src)
 		require.NoError(t, err)
 		runtime.ReadMemStats(&after)
+		cost[shape.name] = int(after.HeapAlloc-before.HeapAlloc) / n
 		t.Logf("SPLIT %-36s %8dKB live  %6dB per node",
-			shape.name, after.HeapAlloc/1024, int(after.HeapAlloc-before.HeapAlloc)/n)
+			shape.name, after.HeapAlloc/1024, cost[shape.name])
 		runtime.KeepAlive(v)
 	}
+
+	// The ordering is the answer to the question in the comment above, so
+	// it is asserted rather than left to be read off the log. Both ends
+	// cost: unifying the definition in costs over holding the same fields
+	// as data, and holding the fields costs over holding the answer alone.
+	// Measured at 12189, 7697, 3693 and 3015 bytes a node.
+	require.Greater(t, cost["resolved call, definition unified"],
+		cost["every field, as plain data"],
+		"unifying the definition in costs more than the same fields as data")
+	require.Greater(t, cost["every field, as plain data"],
+		cost["params and answer, no #do"],
+		"the fields a call names itself by cost something to hold")
+	require.GreaterOrEqual(t, cost["params and answer, no #do"],
+		cost["the answer alone"],
+		"and the parameters cost something over the answer on its own")
 }
