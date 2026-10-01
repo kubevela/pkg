@@ -91,4 +91,14 @@ func TestPrepassAgainstTheCorpus(t *testing.T) {
 		taken, declined, differed, len(names))
 	require.Zero(t, differed,
 		"a template that renders differently is the failure this cannot have")
+	// Every case here is declined today: the comprehensions in the corpus
+	// make no provider call, so there is nothing for a prepass to answer.
+	// Said out loud, because a corpus that proves nothing looks exactly
+	// like one that passes, and if a case ever starts being taken this is
+	// where to notice it.
+	require.Zero(t, taken,
+		"no corpus case makes a call in a loop, so none should be taken; "+
+			"if one now is, this test has started proving something and should say so")
+	require.Equal(t, len(names), declined,
+		"so every one of them should be declined")
 }

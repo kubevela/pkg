@@ -33,7 +33,7 @@ import (
 // rather than passed over, because a prepass that quietly does nothing
 // looks exactly like one that works.
 
-func loopSrc(n int, _ bool) string {
+func loopSrc(n int) string {
 	return fmt.Sprintf(`
 import "vela/base64"
 import "list"
@@ -54,7 +54,7 @@ func TestPrepassRendersWhatTheResolverRenders(t *testing.T) {
 	policy := OptimisePolicy{Enabled: true, Threshold: 1}
 
 	for _, n := range []int{1, 5, 50} {
-		src := loopSrc(n, true)
+		src := loopSrc(n)
 
 		// what the resolver makes of it
 		want, err := c.CompileString(ctx, src)
@@ -108,12 +108,12 @@ func TestPrepassDeclines(t *testing.T) {
 	}{
 		{
 			name:   "a loop under the threshold",
-			src:    loopSrc(5, false),
+			src:    loopSrc(5),
 			policy: OptimisePolicy{Enabled: true, Threshold: 50},
 		},
 		{
 			name:   "the prepass turned off",
-			src:    loopSrc(5, true),
+			src:    loopSrc(5),
 			policy: OptimisePolicy{},
 		},
 		{

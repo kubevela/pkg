@@ -308,14 +308,12 @@ func TestEdgeWithTheOtherOptions(t *testing.T) {
 		// the check is that the prepass changes nothing about that: the
 		// two policies have to behave the same, whatever that is.
 		cc := cuecontext.New()
-		for _, policy := range []cuex.OptimisePolicy{
-			{}, {Enabled: true, Threshold: 1},
-		} {
+		outcome := func(policy cuex.OptimisePolicy) string {
+			var out string
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						t.Logf("EDGE filling a value from another context panics, policy enabled=%v: %v",
-							policy.Enabled, r)
+						out = fmt.Sprintf("panic: %v", r)
 					}
 				}()
 				_, err := c.CompileStringWithOptions(ctx, `
@@ -326,9 +324,15 @@ given: _
 _c: {for i in _idx {"\(i)": edge.#Do & {$params: "\(given.tag)-\(i)"}}}
 out: _c["3"].$returns
 `, cuex.WithData("given", cc.CompileString(`{tag: "v1"}`)), cuex.WithOptimise(policy))
-				t.Logf("EDGE policy enabled=%v: err=%v", policy.Enabled, err)
+				out = fmt.Sprintf("err: %v", err)
 			}()
+			return out
 		}
+		off := outcome(cuex.OptimisePolicy{})
+		with := outcome(cuex.OptimisePolicy{Enabled: true, Threshold: 1})
+		t.Logf("EDGE filling a value from another context: off=%s", off)
+		require.Equal(t, off, with,
+			"whatever filling a foreign value does, the prepass must not change it")
 	})
 
 	t.Run("data filled in as a value from this compile", func(t *testing.T) {

@@ -37,7 +37,7 @@ import (
 // writing the whole node back out and nothing else would notice.
 func TestAnAnsweredCallKeepsOnlyWhatIsRead(t *testing.T) {
 	c := NewCompilerWithDefaultInternalPackages()
-	out, took := c.prepass(context.Background(), loopSrc(4, true),
+	out, took := c.prepass(context.Background(), loopSrc(4),
 		c.PackageManager.GetImports(),
 		OptimisePolicy{Enabled: true, Threshold: 1})
 	require.True(t, took)
@@ -50,8 +50,13 @@ func TestAnAnsweredCallKeepsOnlyWhatIsRead(t *testing.T) {
 		"the #do that named the call is of no use once it is answered")
 	require.NotContains(t, string(bs), providerKey,
 		"nor the #provider")
-	require.Contains(t, string(bs), returnsKey,
-		"the answer is the point")
+	// Not just that the text says $returns anywhere: the loop that reads
+	// the answers keeps its own _calls[...].$returns and satisfies that on
+	// its own. What has to be there is the answer, written in.
+	require.Contains(t, string(bs), `"c2VlZC0w"`,
+		"base64 of seed-0 has to be in what is handed on, as a literal")
+	require.NotContains(t, string(bs), "base64.#Encode",
+		"and the call it came from should be gone, replaced by it")
 	require.Contains(t, string(bs), paramsKey,
 		"and the parameters render, so dropping them would change output")
 }

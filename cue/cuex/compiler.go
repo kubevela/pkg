@@ -120,8 +120,11 @@ type CompileConfig struct {
 }
 
 // WithOptimise sets which loops the prepass may answer before the build.
-// Without it a compile uses the default, which takes any loop over the
-// threshold.
+//
+// Without it a compile uses the default, which permits a loop at or over
+// the threshold. Permits and not takes: a loop asking for @concurrency
+// keeps it, and one whose iterations cannot be enumerated or accounted for
+// is left alone whatever its length.
 func WithOptimise(p OptimisePolicy) CompileOption { return withOptimise{p} }
 
 type withOptimise struct{ policy OptimisePolicy }

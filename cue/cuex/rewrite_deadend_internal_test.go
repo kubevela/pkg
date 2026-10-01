@@ -27,6 +27,7 @@ import (
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
 	"cuelang.org/go/cue/format"
+	"cuelang.org/go/cue/parser"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,21 +65,28 @@ func asFile(t *testing.T, node ast.Node) *ast.File {
 	return &ast.File{Decls: []ast.Decl{&ast.EmbedDecl{Expr: expr}}}
 }
 
-// The two views a rewrite could use are mutually exclusive. One keeps the
-// hidden fields a call lives in and cannot be built without the provider
-// packages; the other builds anywhere because it has dropped the hidden
-// fields, and with them every call there was to trim.
+// Which syntax views keep the hidden fields a call lives in, and which of
+// those will build again.
 //
 // Building somewhere new is not optional: a context holds on to what has
 // been built in it, so rebuilding a trimmed value in the context it came
 // from keeps the untrimmed one too and reclaims almost nothing.
-func TestNoSyntaxViewKeepsCallsAndRebuilds(t *testing.T) {
+//
+// cue.All() does both, and this test used to report that nothing did. It
+// built the bytes with no provider packages, so every view failed to
+// resolve vela/base64 and read as "cannot rebuild" whatever it held.
+// Rebuilding was never the bar anyway: a view that parses and builds can
+// still be a different value, which is a trap this package fell into once
+// already. What rules the rewrite out is the next test, where a rebuilt
+// value hands back calls that already hold their answers.
+func TestWhichSyntaxViewsKeepAHiddenCall(t *testing.T) {
 	c := NewCompilerWithDefaultInternalPackages()
 	v, err := c.CompileString(context.Background(), hiddenCallSrc())
 	require.NoError(t, err)
 	require.True(t, v.LookupPath(cue.ParsePath(`_s["0"].$returns`)).Exists(),
 		"the value under test has a hidden call in it")
 
+	seen := map[string]view{}
 	for _, opt := range []struct {
 		name string
 		opts []cue.Option
@@ -91,13 +99,40 @@ func TestNoSyntaxViewKeepsCallsAndRebuilds(t *testing.T) {
 		bs, err := format.Node(v.Syntax(opt.opts...))
 		require.NoError(t, err, opt.name)
 		keptHidden := strings.Contains(string(bs), "_s")
-		rebuilds := cuecontext.New().CompileBytes(bs).Err() == nil
+		// Built the way a render builds, against the provider packages.
+		// Compiling the bytes on their own cannot resolve vela/base64, so
+		// it failed for that reason whatever the view held, and this read
+		// as "never rebuildable" no matter what.
+		rebuilds := func() bool {
+			rebuild := build.NewContext().NewInstance("", nil)
+			rebuild.Imports = c.PackageManager.GetImports()
+			file, err := parser.ParseFile("-", bs, parser.ParseComments)
+			if err != nil {
+				return false
+			}
+			if err := rebuild.AddSyntax(file); err != nil {
+				return false
+			}
+			return cuecontext.New().BuildInstance(rebuild).Err() == nil
+		}()
 
 		t.Logf("VIEW %-20s %4d bytes  keeps the hidden call=%-5v  builds on its own=%v",
 			opt.name, len(bs), keptHidden, rebuilds)
-		require.False(t, keptHidden && rebuilds,
-			"%s would make the rewrite possible, so it is worth revisiting", opt.name)
+		seen[opt.name] = view{keptHidden: keptHidden, rebuilds: rebuilds}
 	}
+
+	// Pinned, so a change in what CUE's views carry shows up here rather
+	// than somewhere it would read as our own doing.
+	require.Equal(t, view{keptHidden: true, rebuilds: true}, seen["All"],
+		"All keeps the hidden call and builds again")
+	require.False(t, seen["All+Resolved"].keptHidden,
+		"resolving references drops the hidden fields, and the calls with them")
+}
+
+// view is what one syntax view of a value turned out to carry.
+type view struct {
+	keptHidden bool
+	rebuilds   bool
 }
 
 // And the view that keeps the calls writes out the conjuncts a field was
@@ -131,8 +166,19 @@ func TestRebuildingRunsTheComprehensionAgain(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, base64.StdEncoding.EncodeToString([]byte("seed-0")), got)
 
+	// Nothing is marked executed, because nothing can be: what the
+	// resolver ran is not written into the value and does not survive a
+	// rebuild. That is the dead end. So the walk finds these calls, and
+	// the point is what it finds them in: nodes that already hold their
+	// answer and still read as calls to make.
 	pending := pendingCalls(rebuilt, map[string]bool{}, nil)
 	t.Logf("a walk of the rebuilt value finds %d calls, every one already answered", len(pending))
 	require.NotEmpty(t, pending,
 		"if a rebuild stops handing back answered calls, this is worth revisiting")
+	for _, call := range pending {
+		answer := call.value.LookupPath(cue.MakePath(cue.Str(returnsKey)))
+		require.True(t, answer.Exists() && answer.IsConcrete(),
+			"%s is handed back to be made and already holds its answer, "+
+				"which is the whole reason the value cannot be rewritten", call.key)
+	}
 }

@@ -136,8 +136,12 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 	}{
 		// nil means widthTemplate, the real thing
 		{"resolved call, definition unified", nil},
+		// The labels are quoted, so they are ordinary string fields and
+		// not the definitions a call names itself by. Unquoted this shape
+		// was a call the resolver would run, which is not what it is here
+		// to weigh.
 		{"every field, as plain data", func(i int) string {
-			return fmt.Sprintf(`x%d: {#do: "encode", #provider: "base64", $params: %q, $returns: %q}`,
+			return fmt.Sprintf(`x%d: {"#do": "encode", "#provider": "base64", $params: %q, $returns: %q}`,
 				i, fmt.Sprintf("hello-%d", i), base64Of(fmt.Sprintf("hello-%d", i)))
 		}},
 		{"params and answer, no #do", func(i int) string {

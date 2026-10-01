@@ -173,17 +173,34 @@ func mentions(node ast.Node, names map[string]bool) bool {
 	// looked into rather than taken
 	readThrough := map[*ast.Ident]bool{}
 	ast.Walk(node, func(n ast.Node) bool {
-		sel, is := n.(*ast.SelectorExpr)
-		if !is {
+		var read string
+		var from ast.Expr
+		switch e := n.(type) {
+		case *ast.SelectorExpr:
+			name, _, err := ast.LabelName(e.Sel)
+			if err != nil {
+				return true
+			}
+			read, from = name, e.X
+		case *ast.IndexExpr:
+			// the same read written with brackets. A template that keys a
+			// loop by something computed tends to reach into it that way,
+			// and reading it as anything else costs that template the whole
+			// walk it was being spared.
+			name, ok := literalText(e.Index)
+			if !ok {
+				return true
+			}
+			read, from = name, e.X
+		default:
 			return true
 		}
-		name, _, err := ast.LabelName(sel.Sel)
-		if err != nil || (name != returnsKey && name != paramsKey) {
+		if read != returnsKey && read != paramsKey {
 			// reaching for something other than the answer, so whatever is
 			// under there might be a call
 			return true
 		}
-		if id := rootOf(sel.X); id != nil {
+		if id := rootOf(from); id != nil {
 			readThrough[id] = true
 		}
 		return true

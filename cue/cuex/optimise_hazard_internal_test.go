@@ -63,6 +63,8 @@ params: {mode: cfg.mode, retries: cfg.retries}
 	t.Logf("HAZARD one declaration, reading retries: %v", err)
 	require.Error(t, err,
 		"a missing declaration shows itself when the field it held is read")
+	require.Contains(t, err.Error(), "retries",
+		"and the error has to be about that field, not about something else going wrong")
 
 	// the quiet case: the params take cfg whole, so nothing is missing and
 	// nothing errors. The provider is simply called with less than it

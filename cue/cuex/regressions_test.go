@@ -65,7 +65,7 @@ package probe
 	return pkg
 }
 
-func TestProbeDuplicateDeclarationRunsTwice(t *testing.T) {
+func TestADuplicateDeclarationStillCallsOnce(t *testing.T) {
 	c := cuex.NewCompilerWithInternalPackages(probePackage())
 	probeRuns.Store(0)
 	v, err := c.CompileString(context.Background(), `

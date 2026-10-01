@@ -23,7 +23,6 @@ import (
 	"sync"
 	"testing"
 
-	"cuelang.org/go/cue"
 	"github.com/stretchr/testify/require"
 
 	cuexruntime "github.com/kubevela/pkg/cue/cuex/runtime"
@@ -166,14 +165,26 @@ func TestACallThatFailsInALoop(t *testing.T) {
 	}
 }
 
-// And the value a failed render hands back should not claim an answer
-// for the call that failed.
-func TestAFailedCallHasNoAnswer(t *testing.T) {
+// A call that fails fails the render, and the error says which call and
+// where it was in the template.
+//
+// Not "the value has no answer in it": there is no value. Asserting
+// against the empty one a failed compile returns passes whatever happens,
+// which is what this test used to do.
+func TestAFailedCallFailsTheRender(t *testing.T) {
 	rec := &recorder{failOn: "n3"}
 	c := NewCompilerWithInternalPackages(rec.pkg())
-	v, _ := c.CompileStringWithOptions(context.Background(),
+	v, err := c.CompileStringWithOptions(context.Background(),
 		loopOverNames(250), WithOptimise(DefaultOptimisePolicy))
-	got := v.LookupPath(cue.MakePath(cue.Hid("_c", "_"), cue.Str("3"), cue.Str(returnsKey)))
-	require.False(t, got.Exists() && got.IsConcrete(),
-		"the call that failed should have no answer sitting where its answer goes")
+	require.Error(t, err, "a call that fails has to fail the render")
+
+	var called FunctionCallError
+	require.ErrorAs(t, err, &called, "the error should say a call failed")
+	require.Contains(t, called.Path, "_c",
+		"it should name where the template put the call, not the document built to answer it")
+	require.NotContains(t, called.Path, iterationField,
+		"a template never wrote that name and should not be shown it")
+
+	require.False(t, v.Exists(),
+		"a failed render hands back no value to read an answer out of")
 }

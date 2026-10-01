@@ -120,7 +120,11 @@ func TestR2HiddenFieldsAreNotSlower(t *testing.T) {
 		ratio := float64(hidden) / float64(visible)
 		t.Logf("R2-5 %2d calls over a %d field manifest: visible %8s  hidden %8s  %.2fx",
 			n, manifest, visible.Round(time.Microsecond), hidden.Round(time.Microsecond), ratio)
-		require.Less(t, ratio, 1.5,
-			"naming a call's field hidden should not cost half as much again")
+		// A loose bound on purpose. This is two wall clock readings on
+		// whatever machine happens to run it, so it is here to catch an
+		// order of magnitude and nothing finer; the ratio in the log is
+		// the thing worth reading.
+		require.Less(t, ratio, 4.0,
+			"naming a call's field hidden should not cost several times as much")
 	}
 }

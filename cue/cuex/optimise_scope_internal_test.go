@@ -57,6 +57,18 @@ func TestFreeIdents(t *testing.T) {
 		{"an if reads in scope", `x: {for i in src if i > n {"\(i)": i}}`,
 			[]string{"src", "n"}},
 		{"a let binds for the body", `x: {let y = a, z: y}`, []string{"a"}},
+		// The alias form, which freeIdents has a branch of its own for.
+		// CUE will not let an alias shadow a field in scope, which is why
+		// not binding the name for what follows cannot put the wrong
+		// declaration in a document: a template that would show it does
+		// not parse.
+		{"an alias reads its expression", `x: {y=inner: a, z: y}`, []string{"a", "y"}},
+		// A pattern alias does not bind its name here, so the name leaks
+		// out as free. That costs a decline where nothing declares it, and
+		// where something does it carries that declaration: a field beside
+		// the pattern rather than the pattern's own binding, so it cannot
+		// change an answer.
+		{"a pattern alias leaks its name", `x: {[p=string]: p}`, []string{"string", "p"}},
 		{"a let is visible to fields written before it",
 			`x: {z: y, let y = a}`, []string{"a"}},
 		{"a let in a comprehension binds after itself",

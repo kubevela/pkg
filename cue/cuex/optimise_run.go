@@ -202,6 +202,14 @@ func (in *Compiler) prepassRound(
 	if !ok {
 		return 0, nil, false
 	}
+	if declaresOurNames(f) {
+		// The documents built below hold the iteration under a name of
+		// this package's choosing. A template that happens to use the same
+		// name would have its own field answered, or a good loop declined,
+		// and either way it would be this reading something it wrote.
+		rep.note("file:declaresOurNames")
+		return 0, nil, false
+	}
 	if asksForAnOrder(f) {
 		// A step attribute says what order the calls run in, and the
 		// resolver sorts by it. This walks the file, so it would answer
@@ -323,6 +331,26 @@ func asksToRunTogether(field *ast.Field) bool {
 		}
 	}
 	return false
+}
+
+// declaresOurNames reports whether the file uses either of the names the
+// iteration documents are built with.
+//
+// Read over the whole file rather than its top level, since the collision
+// that matters is a reference from anywhere.
+func declaresOurNames(f *ast.File) bool {
+	found := false
+	ast.Walk(f, func(n ast.Node) bool {
+		if found {
+			return false
+		}
+		if id, is := n.(*ast.Ident); is &&
+			(id.Name == iterationField || id.Name == keysIndexVar) {
+			found = true
+		}
+		return !found
+	}, nil)
+	return found
 }
 
 // asksForAnOrder reports whether anything in the file carries a step

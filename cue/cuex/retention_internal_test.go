@@ -88,6 +88,7 @@ func TestDoesARenderHoldEveryRound(t *testing.T) {
 	}
 
 	const calls = 2000
+	byGroups := map[int]uint64{}
 	for _, groups := range []int{1, 2, 4, 8} {
 		var src string
 		if groups == 1 {
@@ -95,10 +96,18 @@ func TestDoesARenderHoldEveryRound(t *testing.T) {
 		} else {
 			src = chainedSrc(calls, groups)
 		}
-		h := held(src)
+		byGroups[groups] = held(src)
 		t.Logf("HOLD %4d calls in %d group(s): %7dKB held, %5dB per call",
-			calls, groups, h/1024, int(h)/calls)
+			calls, groups, byGroups[groups]/1024, int(byGroups[groups])/calls)
 	}
+
+	// The same calls arranged in eight dependent groups rather than one
+	// flat one, so the only thing that changed is how many rounds the
+	// resolver needed. Measured at two and a half times; asserted well
+	// under that, because the number is a heap reading and the claim is
+	// only that depth is not free.
+	require.Greater(t, byGroups[8], byGroups[1]*3/2,
+		"a render holding only its result would not grow with the number of rounds")
 }
 
 // And the same question asked of the context directly: a value built, read,
@@ -136,6 +145,14 @@ func TestAContextHoldsWhatWasBuiltInIt(t *testing.T) {
 	t.Logf("CTX %d builds of the same value, everything dropped each time:", rounds)
 	t.Logf("CTX   one context between them: %7dKB held afterwards", shared/1024)
 	t.Logf("CTX   a context each:           %7dKB held afterwards", fresh/1024)
+
+	// Forty one times, measured. Asserted at five, because this is the
+	// premise the whole prepass rests on: a document per batch is only
+	// worth building if what it was built in goes away with it. If this
+	// ever stops holding, batching has no point and this test is where
+	// that should be found out.
+	require.Greater(t, shared, fresh*5,
+		"a context that let go of what was built in it would hold no more than a fresh one")
 }
 
 func flatData(n int) string {

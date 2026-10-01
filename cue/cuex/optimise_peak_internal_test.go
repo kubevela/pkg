@@ -59,10 +59,14 @@ func peakDuring(fn func()) (uint64, time.Duration) {
 			time.Sleep(200 * time.Microsecond)
 		}
 	}()
+	// Closed however fn leaves: a require inside it unwinds the
+	// goroutine rather than returning, and the sampler would then read
+	// memory statistics, which stop the world, until the test binary
+	// exited.
+	defer close(done)
 	start := time.Now()
 	fn()
 	took := time.Since(start)
-	close(done)
 	return highest.Load(), took
 }
 
@@ -105,6 +109,12 @@ func TestWhatThePrepassIsWorth(t *testing.T) {
 		src := stagedLoops(tc.width, tc.stages)
 		var wantJSON string
 
+		// One render before anything is timed. Whichever arm goes first
+		// otherwise pays for loading the provider packages into this
+		// compiler, and the ratio below then flatters it.
+		_, err := c.CompileStringWithOptions(ctx, src, WithOptimise(off))
+		require.NoError(t, err)
+
 		run := func(p OptimisePolicy) (uint64, time.Duration, string) {
 			var out string
 			peak, took := peakDuring(func() {
@@ -129,6 +139,12 @@ func TestWhatThePrepassIsWorth(t *testing.T) {
 			"width %d: the prepass must not change what the template renders", tc.width)
 		require.NotZero(t, OptimiseStats.Calls.Load(),
 			"width %d: if it answered nothing, this measures nothing", tc.width)
+		// Why the test exists, so it should fail if that stops being true.
+		// Measured between 1.7x and 4.5x depending on the shape; asserted
+		// just above level, because a heap peak is a noisy reading and the
+		// claim is only about the direction.
+		require.Greater(t, offPeak, onPeak*11/10,
+			"width %d: answering the loop early should hold less at once", tc.width)
 
 		t.Logf("WORTH %4d wide x %d (%5d calls)  off peak %7dKB %8s   on peak %7dKB %8s   %.2fx peak %.2fx time  (%d loops, %d calls answered)",
 			tc.width, tc.stages, tc.width*tc.stages,

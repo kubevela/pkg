@@ -106,7 +106,14 @@ func narrowTo(decls []*ast.Field, keys map[string]bool) ([]*ast.Field, bool) {
 			found[label] = true
 			kept.Elts = append(kept.Elts, field)
 		}
-		out = append(out, &ast.Field{Label: decl.Label, Value: kept})
+		// The declaration as the template wrote it, with only its value cut
+		// down. Built from the label alone it lost whether the field was
+		// optional and any attribute on it, and an optional field carried
+		// over as a required one is concrete in the document where the
+		// template never said it was.
+		narrowed := *decl
+		narrowed.Value = kept
+		out = append(out, &narrowed)
 	}
 	for key := range keys {
 		if !found[key] {

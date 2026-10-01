@@ -20,7 +20,6 @@ package cuex_test
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"testing"
 
@@ -81,7 +80,7 @@ func TestConcurrentRendersAgree(t *testing.T) {
 			for i := 1; i < len(outs); i++ {
 				require.Equal(t, outs[0], outs[i], "every render should agree")
 			}
-			require.True(t, strings.Contains(outs[0], "p59"))
+			require.Contains(t, outs[0], "p59", "every call in the loop should be answered")
 		})
 	}
 }
