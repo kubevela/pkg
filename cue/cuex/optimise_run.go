@@ -543,9 +543,14 @@ func (in *Compiler) answerBatch(
 		planned = append(planned, p)
 	}
 
+	// One writer for the batch. It holds the blank a Go result is filled
+	// into, which is the same value for every answer and a fifth of what
+	// writing one costs.
+	writer := &answerWriter{cc: v.Context()}
+
 	var out []answeredCall
 	for _, p := range planned {
-		answer, failed := in.runPlanned(ctx, p, rep)
+		answer, failed := in.runPlanned(ctx, p, writer, rep)
 		if failed != nil {
 			return nil, failed, false
 		}
@@ -636,6 +641,7 @@ func (in *Compiler) planOne(
 func (in *Compiler) runPlanned(
 	ctx context.Context,
 	p plannedCall,
+	writer *answerWriter,
 	rep *report,
 ) (ast.Expr, error) {
 	call, at := p.call, p.call.path
@@ -657,7 +663,7 @@ func (in *Compiler) runPlanned(
 		}
 		return nil, err
 	}
-	answer, ok := resultSyntax(call.value.Context(), ret, p.opaque)
+	answer, ok := writer.write(ret, p.opaque)
 	if !ok {
 		rep.note("answerSyntax")
 		return nil, FunctionCallError{
