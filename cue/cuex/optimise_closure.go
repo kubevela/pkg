@@ -42,12 +42,21 @@ import (
 
 // predeclared are the names CUE provides, which need no declaration
 // carrying and are not a reason to decline.
+//
+// The sized types are the whole of CUE's own list, in
+// internal/core/compile/predeclared.go. A name missing from here costs a
+// loop that mentions it, so this is that list rather than the ones that
+// came to mind.
 var predeclared = map[string]bool{
 	"bool": true, "int": true, "float": true, "string": true,
 	"bytes": true, "number": true, "null": true, "_": true,
 	"true": true, "false": true,
 	"len": true, "close": true, "and": true, "or": true,
 	"div": true, "mod": true, "quo": true, "rem": true,
+	"rune": true, "uint": true, "uint8": true, "uint16": true,
+	"uint32": true, "uint64": true, "uint128": true,
+	"int8": true, "int16": true, "int32": true, "int64": true,
+	"int128": true, "float32": true, "float64": true,
 }
 
 // fileScope is a file's top level, indexed so a name can be looked up.

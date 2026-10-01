@@ -54,6 +54,10 @@ const (
 	// concurrencyKey is the attribute a template marks a set of calls with to
 	// say they may run alongside each other: @concurrency(8)
 	concurrencyKey = "concurrency"
+	// orderKey is the attribute a template marks fields with to say what
+	// order their calls run in: @step(1). Spelled the same in cue/util,
+	// which is where the resolver sorts by it.
+	orderKey = "step"
 	// maxPerRenderKey caps how many of a function's calls one render may have
 	// in flight: a ceiling on what a template asks for with @concurrency,
 	// never a request on its own. It sits under #config, where the settings a
@@ -291,6 +295,14 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 	if err != nil {
 		return cue.Value{}, err
 	}
+	// The context this render builds in, made here because the prepass
+	// reads in it too. It has to compile CUE's own packages for the
+	// template regardless, and that is most of what reading a loop's
+	// source costs, so a context of the prepass's own would pay for them
+	// twice. What it reads in here are lists of keys and nothing from a
+	// provider; the documents holding answers still get one context each,
+	// which is what buildIn is for.
+	cc := cuecontext.New()
 	// Loops of calls answered before CUE is handed the template at all,
 	// where the prepass can show it knows what an iteration reads.
 	// Anything it cannot account for it leaves alone, so what follows is
@@ -300,15 +312,13 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 	// imports no provider package has no call to answer, and most
 	// definitions are that, so there is nothing there worth parsing the
 	// file to find out.
-	// The context this render builds in, made here because the prepass
-	// reads in it too. It has to compile CUE's own packages for the
-	// template regardless, and that is most of what reading a loop's
-	// source costs, so a context of the prepass's own would pay for them
-	// twice. What it reads in here are lists of keys and nothing from a
-	// provider; the documents holding answers still get one context each,
-	// which is what buildIn is for.
-	cc := cuecontext.New()
-	if cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
+	//
+	// And not at all while the caller's data is still to come. A fill for
+	// a field the template declares is unified into the value below, after
+	// this has run, so a call reading that field would be answered from
+	// what the template says on its own. Where that is a default, the
+	// answer is concrete and wrong rather than a decline.
+	if len(fills) == 0 && cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
 		answered, failed, took := in.prepassFile(ctx, f, imports, cfg.Optimise, cc, nil)
 		if failed != nil {
 			// A call the prepass made and that said no. The resolver

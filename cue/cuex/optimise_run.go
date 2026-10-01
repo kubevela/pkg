@@ -18,7 +18,7 @@ package cuex
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"strings"
 	"sync/atomic"
 
@@ -202,6 +202,15 @@ func (in *Compiler) prepassRound(
 	if !ok {
 		return 0, nil, false
 	}
+	if asksForAnOrder(f) {
+		// A step attribute says what order the calls run in, and the
+		// resolver sorts by it. This walks the file, so it would answer
+		// the loops in the order they happen to be written, which is not
+		// the same thing and is not something to get wrong quietly. Four
+		// of the six thousand CUE files in this workspace use one.
+		rep.note("file:asksForAnOrder")
+		return 0, nil, false
+	}
 	providers := in.PackageManager.GetProviders()
 
 	loops, calls := 0, 0
@@ -316,6 +325,23 @@ func asksToRunTogether(field *ast.Field) bool {
 	return false
 }
 
+// asksForAnOrder reports whether anything in the file carries a step
+// attribute, which is how a template says what order its calls run in.
+func asksForAnOrder(f *ast.File) bool {
+	for _, decl := range f.Decls {
+		field, isField := decl.(*ast.Field)
+		if !isField {
+			continue
+		}
+		for _, attr := range field.Attrs {
+			if name, _ := attr.Split(); name == orderKey {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // answerLoop answers every iteration of one loop and returns them as the
 // struct the loop would have produced. It reports false wherever it cannot
 // be sure, which leaves the loop for the resolver.
@@ -345,12 +371,17 @@ func (in *Compiler) answerLoop(
 		return nil, 0, nil, false
 	}
 
-	// Names the body only ever reads an element of can be cut down to the
+	// Names the loop only ever reads an element of can be cut down to the
 	// element this iteration reads, which is what keeps a stage reading
 	// the stage before it from carrying all of its answers.
+	//
+	// Asked of the whole comprehension and not just its body, because the
+	// clauses are evaluated in the document too: a condition reading a
+	// name whole, where the body only indexes it, decides which iterations
+	// there are at all and has to see the whole of it.
 	narrowable := map[string][]ast.Expr{}
 	for name := range scope.decls {
-		if indices, only := indexedOnly(comp.Value, name); only {
+		if indices, only := indexedOnly(comp, name); only {
 			narrowable[name] = indices
 		}
 	}
@@ -425,7 +456,7 @@ func (in *Compiler) sourceValues(
 	}
 	var out []ast.Expr
 	for list.Next() {
-		expr, ok := literalOf(list.Value())
+		expr, ok := resultSyntax(nil, list.Value(), false)
 		if !ok {
 			return nil, false
 		}
@@ -465,40 +496,62 @@ func (in *Compiler) answerBatch(
 		return nil, nil, false
 	}
 
+	// Every iteration is read before any of them is called, because a
+	// loop is taken or left whole. One of them that cannot be answered
+	// used to be found after the ones before it had already called their
+	// provider, and the answers were then dropped and the loop handed
+	// back, so the resolver called those providers again.
+	//
 	// A run can answer fewer than it was given: a condition the loop
 	// carries excludes an iteration, and the template never wanted a
 	// field for it either.
-	var out []answeredCall
+	var planned []plannedCall
 	for it.Next() {
 		key, node := it.Selector().Unquoted(), it.Value()
-		answer, failed, ok := in.answerOne(ctx, node, providers, loopPath(loopName, key), rep)
-		if failed != nil {
-			return nil, failed, false
-		}
+		p, ok := in.planOne(node, providers, loopPath(loopName, key), key, rep)
 		if !ok {
 			return nil, nil, false
 		}
-		out = append(out, answeredCall{key, answer})
+		planned = append(planned, p)
+	}
+
+	var out []answeredCall
+	for _, p := range planned {
+		answer, failed := in.runPlanned(ctx, p, rep)
+		if failed != nil {
+			return nil, failed, false
+		}
+		out = append(out, answeredCall{p.key, answer})
 	}
 	return out, nil, true
 }
 
-// answerOne calls the provider a single resolved node names and returns
-// the node to put back in its place.
-func (in *Compiler) answerOne(
-	ctx context.Context,
+// plannedCall is an iteration that can be answered, with everything about
+// it that can be settled before its provider runs.
+type plannedCall struct {
+	key    string
+	call   pendingCall
+	fn     cuexruntime.ProviderFn
+	opaque bool
+	params ast.Expr
+}
+
+// planOne reads what answering an iteration would need and reports false
+// where it cannot be answered. It calls nothing, which is what lets a loop
+// be declined for the cost of reading it.
+func (in *Compiler) planOne(
 	node cue.Value,
 	providers map[string]cuexruntime.Provider,
 	at cue.Path,
+	key string,
 	rep *report,
-) (expr ast.Expr, failed error, ok bool) {
-
+) (plannedCall, bool) {
 	fn, _ := node.LookupPath(doPath).String()
 	if fn == "" {
 		// the loop makes something that is not a call, so there is nothing
 		// here to answer and nothing to gain by taking it
 		rep.note("notACall")
-		return nil, failed, false
+		return plannedCall{}, false
 	}
 	provider, _ := node.LookupPath(providerPath).String()
 	call := pendingCall{
@@ -513,14 +566,52 @@ func (in *Compiler) answerOne(
 		// the parameters did not come out concrete on their own, so this
 		// iteration reads something the document has not got
 		rep.note("paramsNotConcrete")
-		return nil, failed, false
+		return plannedCall{}, false
 	}
 	provFn, err := providerFn(providers, call)
 	if err != nil {
 		rep.note("noProviderFn")
-		return nil, failed, false
+		return plannedCall{}, false
 	}
-	ret, err := callProvider(ctx, provFn, call)
+	// What the resolver would have left at this path, which is the node a
+	// provider hands back with the parameters it was called with beside
+	// it. $params is an ordinary field and part of what a visible node
+	// renders to, so dropping it changes the output of any template whose
+	// loop is not hidden. #do and #provider are definitions and render to
+	// nothing, so they are not put back.
+	params, ok := resultSyntax(nil, node.LookupPath(cue.MakePath(cue.Str(paramsKey))), false)
+	if !ok {
+		rep.note("paramsLiteral")
+		return plannedCall{}, false
+	}
+	// A provider that builds its own value can return a definition, and a
+	// definition is how a result carries another call, so its answer is
+	// written back whole. One handed a Go value cannot, and asking for
+	// definitions there would put the call's own #do and #provider back
+	// into the template.
+	_, fromGo := provFn.(cuexruntime.ResultProviderFn)
+	return plannedCall{
+		key:    key,
+		call:   call,
+		fn:     provFn,
+		opaque: !fromGo,
+		params: params,
+	}, true
+}
+
+// runPlanned makes the call and renders the answer to put in its place.
+//
+// Declining is not an option here: the provider has run, and handing the
+// loop back would have the resolver run it again. So anything that goes
+// wrong past this point is reported, which is what the resolver does with
+// the same call.
+func (in *Compiler) runPlanned(
+	ctx context.Context,
+	p plannedCall,
+	rep *report,
+) (ast.Expr, error) {
+	call, at := p.call, p.call.path
+	ret, err := callProvider(ctx, p.fn, call)
 	if err != nil {
 		// Reported, not declined. Declining hands the loop back and the
 		// resolver runs every call in it again, including the ones that
@@ -536,38 +627,52 @@ func (in *Compiler) answerOne(
 			called.Path = at.String()
 			err = called
 		}
-		failed = err
-		return nil, failed, false
+		return nil, err
 	}
-	answer, ok := answerExpr(ret)
+	answer, ok := resultSyntax(call.value.Context(), ret, p.opaque)
 	if !ok {
-		rep.note("answerExpr")
-		return nil, failed, false
+		rep.note("answerSyntax")
+		return nil, FunctionCallError{
+			Path: at.String(),
+			Err:  errors.New("the provider's result cannot be written back as syntax"),
+		}
 	}
-
-	// What the resolver would have left at this path, which is the node a
-	// provider hands back with the parameters it was called with beside
-	// it. $params is an ordinary field and part of what a visible node
-	// renders to, so dropping it changes the output of any template whose
-	// loop is not hidden. #do and #provider are definitions and render to
-	// nothing, so they are not put back.
-	//
 	// The answer already is the node, $returns and whatever else the
 	// function wrote, so the parameters go into it rather than around it.
 	filled, isStruct := answer.(*ast.StructLit)
 	if !isStruct {
 		rep.note("notAStruct")
-		return nil, failed, false
+		return nil, FunctionCallError{
+			Path: at.String(),
+			Err:  errors.New("the provider's result is not a struct"),
+		}
 	}
-	params, ok := literalOf(node.LookupPath(cue.MakePath(cue.Str(paramsKey))))
-	if !ok {
-		rep.note("paramsLiteral")
-		return nil, failed, false
-	}
+	// What is written back is an answered call, so it must not still read
+	// as one asking to be made. An opaque answer is kept whole precisely
+	// because a result can carry another call as a definition, and the
+	// node's own #do and #provider are definitions too: left in, the
+	// resolver finds them and makes every call a second time.
 	filled.Elts = append([]ast.Decl{
-		&ast.Field{Label: ast.NewString(paramsKey), Value: params},
-	}, filled.Elts...)
-	return filled, nil, true
+		&ast.Field{Label: ast.NewString(paramsKey), Value: p.params},
+	}, withoutCallLabels(filled.Elts)...)
+	return filled, nil
+}
+
+// withoutCallLabels drops the #do and #provider a call names itself by,
+// at the top level and nowhere deeper: a result that carries a call of its
+// own keeps it.
+func withoutCallLabels(elts []ast.Decl) []ast.Decl {
+	out := make([]ast.Decl, 0, len(elts))
+	for _, elt := range elts {
+		if field, isField := elt.(*ast.Field); isField {
+			if name, _, err := ast.LabelName(field.Label); err == nil &&
+				(name == doKey || name == providerKey) {
+				continue
+			}
+		}
+		out = append(out, elt)
+	}
+	return out
 }
 
 // keysFor works out which elements of each narrowable name this iteration
@@ -694,36 +799,6 @@ func loopPath(loopName, key string) cue.Path {
 		return cue.MakePath(cue.Hid(loopName, "_"), cue.Str(key))
 	}
 	return cue.MakePath(cue.Str(loopName), cue.Str(key))
-}
-
-// answerExpr renders what a provider returned as syntax to put back in the
-// template. A Go result is whatever JSON can hold, and JSON is CUE.
-func answerExpr(ret any) (ast.Expr, bool) {
-	if v, isValue := ret.(cue.Value); isValue {
-		return literalOf(v)
-	}
-	bs, err := json.Marshal(ret)
-	if err != nil {
-		return nil, false
-	}
-	expr, err := parser.ParseExpr("-", string(bs))
-	if err != nil {
-		return nil, false
-	}
-	return expr, true
-}
-
-// literalOf is a value as an expression, where the value is data.
-func literalOf(v cue.Value) (ast.Expr, bool) {
-	bs, err := v.MarshalJSON()
-	if err != nil {
-		return nil, false
-	}
-	expr, err := parser.ParseExpr("-", string(bs))
-	if err != nil {
-		return nil, false
-	}
-	return expr, true
 }
 
 // rebind binds a file's identifiers to the file they are in.
