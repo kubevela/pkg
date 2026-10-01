@@ -140,7 +140,7 @@ func (s fileScope) closureOf(seeds []string, skip map[string]bool) ([]string, []
 		name := queue[0]
 		queue = queue[1:]
 		switch {
-		case skip[name], predeclared[name], wanted[name]:
+		case skip[name], wanted[name]:
 			continue
 		}
 		if spec, isImport := s.imports[name]; isImport {
@@ -152,11 +152,20 @@ func (s fileScope) closureOf(seeds []string, skip map[string]bool) ([]string, []
 		}
 		fields, declared := s.decls[name]
 		if !declared {
+			if predeclared[name] {
+				// CUE's own, so the document needs nothing carried for it.
+				continue
+			}
 			// Not a declaration, not an import, not CUE's own. This does
 			// not know what it is and will not carry a file it cannot show
 			// to be complete.
 			return nil, nil, false
 		}
+		// A declaration of the name wins over CUE's, which is what CUE
+		// does: a template may declare a field called uint and refer to
+		// it. Asked the other way round the declaration was never carried,
+		// and the document resolved the name to the type instead, which
+		// left it not concrete and the loop declined for no reason.
 		wanted[name] = true
 		order = append(order, name)
 		// every declaration of the name, not the first

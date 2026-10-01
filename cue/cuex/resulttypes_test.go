@@ -1,6 +1,8 @@
 package cuex_test
 
 import (
+	"strings"
+	"strconv"
 	"context"
 	"testing"
 
@@ -103,10 +105,35 @@ import "vela/rtypes"
 a: rtypes.#Do & {$params: "x"}
 b: rtypes.#Do & {$params: "y"}`)
 
-	t.Logf("one call: whole=%v blob=%v | two calls: whole=%v blob=%v",
-		oneWhole, oneBlob, twoWhole, twoBlob)
+	// And a loop wide enough to be answered before the build, which is
+	// the other place a result is written back and the one the two arms
+	// above never reach: they are flat fields, so both of them go through
+	// the resolver whatever the policy says.
+	var keys []string
+	for i := 0; i < 12; i++ {
+		keys = append(keys, strconv.Quote("k"+strconv.Itoa(i)))
+	}
+	loopSrc := `
+import "vela/rtypes"
+keys: [` + strings.Join(keys, ", ") + `]
+_calls: {
+	for k in keys {
+		(k): rtypes.#Do & {$params: k}
+	}
+}
+a: _calls["k0"]`
+
+	cuex.OptimiseStats.Calls.Store(0)
+	loopWhole, loopBlob := read(loopSrc)
+	require.EqualValues(t, 12, cuex.OptimiseStats.Calls.Load(),
+		"the loop has to be answered early, or this arm is the resolver again")
+
+	t.Logf("one call: whole=%v blob=%v | two calls: whole=%v blob=%v | answered loop: whole=%v blob=%v",
+		oneWhole, oneBlob, twoWhole, twoBlob, loopWhole, loopBlob)
 	require.Equal(t, oneWhole, twoWhole, "a whole float should not become an int in company")
 	require.Equal(t, oneBlob, twoBlob, "bytes should not become a base64 string in company")
+	require.Equal(t, oneWhole, loopWhole, "nor when the loop was answered before the build")
+	require.Equal(t, oneBlob, loopBlob, "nor the bytes")
 	require.Equal(t, cue.FloatKind, twoWhole)
 	require.Equal(t, cue.BytesKind, twoBlob)
 }
