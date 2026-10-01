@@ -149,6 +149,10 @@ func (in *Compiler) prepassFile(
 	if !policy.Enabled {
 		return 0, nil, false
 	}
+	// Asked of the template as written, and kept. The rounds below rewrite
+	// it as they answer, so asking again later would say no whatever the
+	// template looked like to begin with.
+	chained := chainedRounds(f, imports)
 	// Loops come in waves. A second stage reads the answers of the first,
 	// so its parameters are not concrete until the first has been
 	// answered, and one pass over the file would take the first and
@@ -157,7 +161,7 @@ func (in *Compiler) prepassFile(
 	// reason.
 	total := 0
 	for {
-		n, failed, took := in.prepassRound(ctx, f, imports, policy, reading, rep)
+		n, failed, took := in.prepassRound(ctx, f, imports, policy, chained, reading, rep)
 		if failed != nil {
 			return 0, failed, false
 		}
@@ -195,6 +199,7 @@ func (in *Compiler) prepassRound(
 	f *ast.File,
 	imports []*build.Instance,
 	policy OptimisePolicy,
+	chained bool,
 	reading *cue.Context,
 	rep *report,
 ) (int, error, bool) {
@@ -244,7 +249,7 @@ func (in *Compiler) prepassRound(
 		rep.note("")
 		loopName, _, _ := ast.LabelName(field.Label)
 		answers, n, failed, took := in.answerLoop(
-			ctx, scope, comp, imports, providers, policy, reading, loopName, rep)
+			ctx, scope, comp, imports, providers, policy, chained, reading, loopName, rep)
 		if failed != nil {
 			// The call was made and it said no. Handing the loop back
 			// would make every call in it a second time.
@@ -353,6 +358,93 @@ func declaresOurNames(f *ast.File) bool {
 	return found
 }
 
+// literalLength is how many elements a loop's source has, where that can
+// be read without evaluating anything.
+//
+// Only a list written out, directly or under a name declared once as one.
+// A list holding an ellipsis or a comprehension is not counted, since what
+// it says and what it comes to are not the same number, and being wrong
+// here would refuse a loop that should be taken or build a document for
+// one that should not.
+func literalLength(scope fileScope, source ast.Expr) (int, bool) {
+	list, is := source.(*ast.ListLit)
+	if !is {
+		id, isIdent := source.(*ast.Ident)
+		if !isIdent {
+			return 0, false
+		}
+		decls := scope.decls[id.Name]
+		if len(decls) != 1 {
+			return 0, false
+		}
+		if list, is = decls[0].Value.(*ast.ListLit); !is {
+			return 0, false
+		}
+	}
+	for _, elt := range list.Elts {
+		switch elt.(type) {
+		case *ast.Ellipsis, *ast.Comprehension:
+			return 0, false
+		}
+	}
+	return len(list.Elts), true
+}
+
+// chainedRounds reports whether a loop of calls in the file reads what
+// another produces, which is what gives the resolver more than one round
+// to do and is where answering early is worth most.
+//
+// Read from the syntax, before a call is made. A loop counts as making a
+// call where its body names a provider package, which is what a call is
+// written as; guessing wrong only makes the prepass more or less eager
+// about a loop.
+func chainedRounds(f *ast.File, imports []*build.Instance) bool {
+	pkgs := providerImports(f, imports)
+	if len(pkgs) == 0 {
+		return false
+	}
+	type callLoop struct {
+		name  string
+		reads map[string]bool
+	}
+	var loops []callLoop
+	named := map[string]bool{}
+	for _, decl := range f.Decls {
+		field, isField := decl.(*ast.Field)
+		if !isField {
+			continue
+		}
+		comp, holdsLoop := loopOf(field)
+		if !holdsLoop {
+			continue
+		}
+		name, _, err := ast.LabelName(field.Label)
+		if err != nil {
+			continue
+		}
+		reads, calls := map[string]bool{}, false
+		for _, id := range freeIdents(comp) {
+			reads[id] = true
+			if pkgs[id] {
+				calls = true
+			}
+		}
+		if !calls {
+			continue
+		}
+		loops = append(loops, callLoop{name: name, reads: reads})
+		named[name] = true
+	}
+	for _, loop := range loops {
+		for read := range loop.reads {
+			if read != loop.name && named[read] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // asksForAnOrder reports whether anything in the file carries a step
 // attribute, which is how a template says what order its calls run in.
 func asksForAnOrder(f *ast.File) bool {
@@ -380,6 +472,7 @@ func (in *Compiler) answerLoop(
 	imports []*build.Instance,
 	providers map[string]cuexruntime.Provider,
 	policy OptimisePolicy,
+	chained bool,
 	reading *cue.Context,
 	loopName string,
 	rep *report,
@@ -389,12 +482,22 @@ func (in *Compiler) answerLoop(
 		rep.note("loop:onlyForClause")
 		return nil, 0, nil, false
 	}
+	// The threshold is in iterations, so it needs to know how many there
+	// are, and reading what a loop iterates over means building a document
+	// for it. Where the length can be had from the syntax instead, a loop
+	// the policy will refuse is refused for nothing: a template looping
+	// over a list it wrote out is the common shape, and before this it paid
+	// a build to be told it was too small.
+	if n, known := literalLength(scope, forClause.Source); known && !policy.allows(n, chained) {
+		rep.note("loop:policy")
+		return nil, 0, nil, false
+	}
 	source, ok := in.sourceValues(scope, forClause.Source, imports, reading)
 	if !ok {
 		rep.note("loop:sourceValues")
 		return nil, 0, nil, false
 	}
-	if !policy.allows(len(source)) {
+	if !policy.allows(len(source), chained) {
 		rep.note("loop:policy")
 		return nil, 0, nil, false
 	}

@@ -39,28 +39,36 @@ type OptimisePolicy struct {
 	// Enabled turns it off outright.
 	Enabled bool
 	// Threshold is the number of iterations below which a loop is left to
-	// the resolver.
+	// the resolver, where the file has more than one round of calls.
 	//
 	// It decides two things. How many templates rely on the prepass being
 	// right, since a wrong answer is as wrong on a small loop as a large
 	// one; and, because a small loop is where the saving is worth least,
 	// whether the saving covers what the prepass costs to run at all.
 	//
-	// Where the second turns over depends on the shape. With the prepass
-	// forced on, a template of chained loops pays from five iterations up,
-	// because chaining is where the resolver repeats itself and the prepass
-	// does not. One flat loop is the hard case: the resolver does a single
-	// round there and is already close to as cheap as it gets, so the
-	// prepass is 0.91x at five iterations, level at ten and ahead from
-	// twenty.
-	//
-	// A loop under the threshold is not free, and that is what sets the
-	// number rather than the crossover. The threshold is in iterations, so
-	// the loop's source is evaluated before it can be applied, and looking
-	// and then declining costs a few percent of a small render. That is
-	// paid whatever the threshold is, so a higher one pays it on more
-	// templates and gives up the saving on them as well.
+	// Chained, the second turns over early: the resolver walks the whole
+	// value once per round, so a template of four stages has it doing four
+	// passes over something that grows as answers fill in, and that is
+	// where it is weak. Ten iterations is 1.48x and twenty five is 1.72x.
 	Threshold int
+	// LoneThreshold is the same number for a file whose loops read nothing
+	// of each other, and it is much higher because such a file is not where
+	// the resolver is weak.
+	//
+	// One round of independent calls is close to as cheap as the resolver
+	// gets, and there the prepass is overhead until the loop is big enough
+	// for holding every answer at once to cost something. Measured on one
+	// flat loop: 0.74x at ten iterations, 0.94x at a hundred, level at a
+	// hundred and fifty, 1.07x at two hundred, 1.87x at two thousand.
+	//
+	// The two numbers cannot be one number. At ten iterations the shapes
+	// disagree by a factor of two, 0.74x against 1.48x, so whichever single
+	// value were chosen would be wrong for one of them. This was tried with
+	// one and the flat shape paid for it.
+	//
+	// Zero means use Threshold, so a caller naming one number gets that
+	// number for both shapes.
+	LoneThreshold int
 	// Batch is how many iterations are answered in one document.
 	//
 	// It is the whole of the trade. One at a time bounds what is in
@@ -78,14 +86,22 @@ type OptimisePolicy struct {
 // buying anything, and well short of where holding a run starts to cost.
 const defaultBatch = 100
 
-// defaultThreshold is where the saving starts being worth the exposure.
-//
-// Raising it does not buy what it looks like it buys. A loop under the
-// threshold still costs what the prepass spends deciding, so a higher one
-// pays that on more templates and gives up the saving on them too: at
-// twenty iterations, chained four ways, taking the loop is 2.40x and
-// declining it is 0.97x.
+// defaultThreshold is where the saving starts being worth the exposure for
+// a file with rounds to save.
 const defaultThreshold = 10
+
+// defaultLoneThreshold is past where one flat loop turns over, which is
+// about a hundred and fifty, with room for the measurement to be noisy.
+const defaultLoneThreshold = 200
+
+// loneThreshold is the threshold for a file of one round, falling back to
+// the only number a caller gave.
+func (p OptimisePolicy) loneThreshold() int {
+	if p.LoneThreshold > 0 {
+		return p.LoneThreshold
+	}
+	return p.Threshold
+}
 
 // batch is the run size to answer in, never zero.
 func (p OptimisePolicy) batch() int {
@@ -95,7 +111,8 @@ func (p OptimisePolicy) batch() int {
 	return defaultBatch
 }
 
-// DefaultOptimisePolicy takes any loop of ten iterations or more.
+// DefaultOptimisePolicy takes a loop of ten iterations where the file has
+// rounds to save, and of two hundred where it has not.
 //
 // Every CUE file in this workspace, three thousand three hundred of
 // them, has no loop of provider calls in it, so this fires on nothing
@@ -103,12 +120,20 @@ func (p OptimisePolicy) batch() int {
 // write. Those are the ones looping over a thousand resources, and they
 // are the ones already in trouble.
 var DefaultOptimisePolicy = OptimisePolicy{
-	Enabled:   true,
-	Threshold: defaultThreshold,
-	Batch:     defaultBatch,
+	Enabled:       true,
+	Threshold:     defaultThreshold,
+	LoneThreshold: defaultLoneThreshold,
+	Batch:         defaultBatch,
 }
 
-// allows reports whether a loop of n iterations may be taken.
-func (p OptimisePolicy) allows(n int) bool {
-	return p.Enabled && n >= p.Threshold
+// allows reports whether a loop of n iterations may be taken, where
+// chained says the file has a loop reading what another produces.
+func (p OptimisePolicy) allows(n int, chained bool) bool {
+	if !p.Enabled {
+		return false
+	}
+	if chained {
+		return n >= p.Threshold
+	}
+	return n >= p.loneThreshold()
 }

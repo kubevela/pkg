@@ -23,20 +23,26 @@ import (
 )
 
 func TestOptimisePolicy(t *testing.T) {
+	forced := OptimisePolicy{Enabled: true, Threshold: 1}
 	for _, tc := range []struct {
-		name   string
-		policy OptimisePolicy
-		n      int
-		want   bool
+		name    string
+		policy  OptimisePolicy
+		n       int
+		chained bool
+		want    bool
 	}{
-		{"off takes nothing", OptimisePolicy{}, 1000, false},
-		{"a big loop is taken", DefaultOptimisePolicy, 1000, true},
-		{"at the threshold exactly", DefaultOptimisePolicy, defaultThreshold, true},
-		{"one below it", DefaultOptimisePolicy, defaultThreshold - 1, false},
-		{"a threshold of one takes everything", OptimisePolicy{Enabled: true, Threshold: 1}, 1, true},
+		{"off takes nothing", OptimisePolicy{}, 1000, true, false},
+		{"a big loop is taken", DefaultOptimisePolicy, 1000, true, true},
+		{"chained, at the threshold exactly", DefaultOptimisePolicy, defaultThreshold, true, true},
+		{"chained, one below it", DefaultOptimisePolicy, defaultThreshold - 1, true, false},
+		{"lone, at its own threshold", DefaultOptimisePolicy, defaultLoneThreshold, false, true},
+		{"lone, one below it", DefaultOptimisePolicy, defaultLoneThreshold - 1, false, false},
+		{"lone, at the chained threshold", DefaultOptimisePolicy, defaultThreshold, false, false},
+		{"a threshold of one takes everything", forced, 1, true, true},
+		{"and does so whatever the shape", forced, 1, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, tc.policy.allows(tc.n))
+			require.Equal(t, tc.want, tc.policy.allows(tc.n, tc.chained))
 		})
 	}
 }

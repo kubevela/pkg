@@ -87,8 +87,8 @@ func TestAResultsTypeDoesNotDependOnPassWidth(t *testing.T) {
 	c := cuex.NewCompilerWithInternalPackages(resultTypesPackage())
 	ctx := context.Background()
 
-	read := func(src string) (cue.Kind, cue.Kind) {
-		v, err := c.CompileString(ctx, src)
+	read := func(src string, opts ...cuex.CompileOption) (cue.Kind, cue.Kind) {
+		v, err := c.CompileStringWithOptions(ctx, src, opts...)
 		require.NoError(t, err)
 		whole := v.LookupPath(cue.ParsePath("a.$returns.whole"))
 		blob := v.LookupPath(cue.ParsePath("a.$returns.blob"))
@@ -105,10 +105,14 @@ import "vela/rtypes"
 a: rtypes.#Do & {$params: "x"}
 b: rtypes.#Do & {$params: "y"}`)
 
-	// And a loop wide enough to be answered before the build, which is
-	// the other place a result is written back and the one the two arms
-	// above never reach: they are flat fields, so both of them go through
-	// the resolver whatever the policy says.
+	// And a loop answered before the build, which is the other place a
+	// result is written back and the one the two arms above never reach:
+	// they are flat fields, so both go through the resolver whatever the
+	// policy says.
+	//
+	// The policy is forced rather than widened. One flat loop of twelve is
+	// below the shipped threshold for its shape, and two hundred calls to
+	// get over it would be two hundred calls to read two kinds.
 	var keys []string
 	for i := 0; i < 12; i++ {
 		keys = append(keys, strconv.Quote("k"+strconv.Itoa(i)))
@@ -124,7 +128,9 @@ _calls: {
 a: _calls["k0"]`
 
 	cuex.OptimiseStats.Calls.Store(0)
-	loopWhole, loopBlob := read(loopSrc)
+	loopWhole, loopBlob := read(loopSrc, cuex.WithOptimise(cuex.OptimisePolicy{
+		Enabled: true, Threshold: 1, LoneThreshold: 1, Batch: 100,
+	}))
 	require.EqualValues(t, 12, cuex.OptimiseStats.Calls.Load(),
 		"the loop has to be answered early, or this arm is the resolver again")
 
