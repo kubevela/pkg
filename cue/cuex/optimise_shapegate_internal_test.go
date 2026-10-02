@@ -25,8 +25,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Which shape a file is, read from the syntax before a call is made.
-func TestChainedRoundsReadsTheShape(t *testing.T) {
+// Which loops are part of a chain, read from the syntax before a call is
+// made. By loop, because a file can hold a chain and an independent loop
+// beside it and they want different thresholds.
+func TestChainedLoopsReadTheShape(t *testing.T) {
 	c := NewCompilerWithDefaultInternalPackages()
 	imports := c.PackageManager.GetImports()
 
@@ -64,6 +66,21 @@ out: {for i in _idx {"\(i)": _a["\(i)"].$returns}}
 			chained: false,
 		},
 		{
+			// a chain and an independent loop in one file: the chain is
+			// chained and the loner is not, which is the whole reason this
+			// is per loop
+			name: "a chain with a loner beside it",
+			src: `import "vela/base64"
+import "list"
+_idx: list.Range(0, 4, 1)
+_a: {for i in _idx {"\(i)": base64.#Encode & {$params: "a-\(i)"}}}
+_b: {for i in _idx {"\(i)": base64.#Encode & {$params: _a["\(i)"].$returns}}}
+_lone: {for i in _idx {"\(i)": base64.#Encode & {$params: "l-\(i)"}}}
+out: {for i in _idx {"\(i)": _b["\(i)"].$returns + _lone["\(i)"].$returns}}
+`,
+			chained: true,
+		},
+		{
 			name: "no provider package at all",
 			src: `import "list"
 _idx: list.Range(0, 4, 1)
@@ -75,7 +92,7 @@ out: {for i in _idx {"\(i)": "\(i)"}}
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := parser.ParseFile("-", tc.src, parser.ParseComments)
 			require.NoError(t, err)
-			require.Equal(t, tc.chained, chainedRounds(f, imports))
+			require.Equal(t, tc.chained, len(chainedLoops(f, imports)) > 0)
 		})
 	}
 }
@@ -150,4 +167,35 @@ func TestLiteralLength(t *testing.T) {
 			}
 		})
 	}
+}
+
+// A chain and an independent loop in one file get different thresholds.
+func TestALonerBesideAChainKeepsItsOwnThreshold(t *testing.T) {
+	c := NewCompilerWithDefaultInternalPackages()
+	imports := c.PackageManager.GetImports()
+
+	src := `import "vela/base64"
+import "list"
+_idx: list.Range(0, 20, 1)
+_a: {for i in _idx {"\(i)": base64.#Encode & {$params: "a-\(i)"}}}
+_b: {for i in _idx {"\(i)": base64.#Encode & {$params: _a["\(i)"].$returns}}}
+_lone: {for i in _idx {"\(i)": base64.#Encode & {$params: "l-\(i)"}}}
+out: {for i in _idx {"\(i)": _b["\(i)"].$returns + _lone["\(i)"].$returns}}
+`
+	f, err := parser.ParseFile("-", src, parser.ParseComments)
+	require.NoError(t, err)
+	chained := chainedLoops(f, imports)
+	require.True(t, chained["_a"], "the producer is in the chain")
+	require.True(t, chained["_b"], "and so is the reader")
+	require.False(t, chained["_lone"],
+		"the loop nothing reads and that reads nothing is not")
+
+	// Twenty iterations: over the chained threshold, under the lone one.
+	// So the two chained loops are answered and the loner is left, which
+	// is forty of the sixty calls.
+	OptimiseStats.Calls.Store(0)
+	_, took := c.prepass(context.Background(), src, imports, DefaultOptimisePolicy)
+	require.True(t, took)
+	require.EqualValues(t, 40, OptimiseStats.Calls.Load(),
+		"the chain is worth answering at twenty and the loner is not")
 }

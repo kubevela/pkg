@@ -1,9 +1,9 @@
 package cuex_test
 
 import (
-	"strings"
-	"strconv"
 	"context"
+	"strconv"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"

@@ -152,7 +152,7 @@ func (in *Compiler) prepassFile(
 	// Asked of the template as written, and kept. The rounds below rewrite
 	// it as they answer, so asking again later would say no whatever the
 	// template looked like to begin with.
-	chained := chainedRounds(f, imports)
+	chained := chainedLoops(f, imports)
 	// Loops come in waves. A second stage reads the answers of the first,
 	// so its parameters are not concrete until the first has been
 	// answered, and one pass over the file would take the first and
@@ -199,7 +199,7 @@ func (in *Compiler) prepassRound(
 	f *ast.File,
 	imports []*build.Instance,
 	policy OptimisePolicy,
-	chained bool,
+	chained map[string]bool,
 	reading *cue.Context,
 	rep *report,
 ) (int, error, bool) {
@@ -249,7 +249,7 @@ func (in *Compiler) prepassRound(
 		rep.note("")
 		loopName, _, _ := ast.LabelName(field.Label)
 		answers, n, failed, took := in.answerLoop(
-			ctx, scope, comp, imports, providers, policy, chained, reading, loopName, rep)
+			ctx, scope, comp, imports, providers, policy, chained[loopName], reading, loopName, rep)
 		if failed != nil {
 			// The call was made and it said no. Handing the loop back
 			// would make every call in it a second time.
@@ -390,18 +390,27 @@ func literalLength(scope fileScope, source ast.Expr) (int, bool) {
 	return len(list.Elts), true
 }
 
-// chainedRounds reports whether a loop of calls in the file reads what
-// another produces, which is what gives the resolver more than one round
-// to do and is where answering early is worth most.
+// chainedLoops is the loops of calls that are part of a chain: those that
+// read what another produces and those whose answers another reads.
+//
+// A chain is what gives the resolver more than one round to do, since it
+// walks the whole value once per round, and that is where answering early
+// is worth most. Both ends are in it: the reader waits for a round, and
+// the producer's answers are held while that round runs.
+//
+// By loop and not by file. A file can hold a chain and an independent loop
+// beside it, and treating the independent one as chained would take it at
+// a tenth of the length it needs to be worth taking, which is the loss the
+// two thresholds exist to avoid.
 //
 // Read from the syntax, before a call is made. A loop counts as making a
 // call where its body names a provider package, which is what a call is
 // written as; guessing wrong only makes the prepass more or less eager
 // about a loop.
-func chainedRounds(f *ast.File, imports []*build.Instance) bool {
+func chainedLoops(f *ast.File, imports []*build.Instance) map[string]bool {
 	pkgs := providerImports(f, imports)
 	if len(pkgs) == 0 {
-		return false
+		return nil
 	}
 	type callLoop struct {
 		name  string
@@ -435,14 +444,16 @@ func chainedRounds(f *ast.File, imports []*build.Instance) bool {
 		loops = append(loops, callLoop{name: name, reads: reads})
 		named[name] = true
 	}
+	chained := map[string]bool{}
 	for _, loop := range loops {
 		for read := range loop.reads {
 			if read != loop.name && named[read] {
-				return true
+				chained[loop.name] = true
+				chained[read] = true
 			}
 		}
 	}
-	return false
+	return chained
 }
 
 // asksForAnOrder reports whether anything in the file carries a step

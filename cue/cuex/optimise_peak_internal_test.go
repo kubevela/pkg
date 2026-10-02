@@ -17,9 +17,9 @@ limitations under the License.
 package cuex
 
 import (
-	"os"
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"strings"
 	"sync/atomic"

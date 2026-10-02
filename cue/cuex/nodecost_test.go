@@ -86,6 +86,11 @@ func TestACallCostsMoreThanItsAnswer(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		v, err := c.CompileString(ctx, src)
 		require.NoError(t, err)
+		// Collected before reading, or an automatic collection landing
+		// mid-compile decides the number: it frees what the compile threw
+		// away and shrinks the heap, and it does that most to the template
+		// that allocates most, which is the one being measured.
+		runtime.GC()
 		runtime.ReadMemStats(&after)
 		out := int(after.HeapAlloc-before.HeapAlloc) / max(n, 1)
 		runtime.KeepAlive(v)
@@ -112,7 +117,7 @@ func TestACallCostsMoreThanItsAnswer(t *testing.T) {
 		}
 	}
 
-	// Measured around four and a half times at four thousand; asserted at
+	// Measured at five point three times at four thousand; asserted at
 	// twice, since both sides are heap readings and the claim is that most
 	// of a resolved call is not its answer.
 	require.Greater(t, wide[0], wide[1]*2,
@@ -174,6 +179,9 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 		runtime.ReadMemStats(&before)
 		v, err := c.CompileString(ctx, src)
 		require.NoError(t, err)
+		// See above: read after a collection, so what is left is what the
+		// value holds rather than whatever had not been swept yet.
+		runtime.GC()
 		runtime.ReadMemStats(&after)
 		cost[shape.name] = int(after.HeapAlloc-before.HeapAlloc) / n
 		t.Logf("SPLIT %-36s %8dKB live  %6dB per node",
@@ -185,7 +193,9 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 	// it is asserted rather than left to be read off the log. Both ends
 	// cost: unifying the definition in costs over holding the same fields
 	// as data, and holding the fields costs over holding the answer alone.
-	// Measured at 12189, 7697, 3693 and 3015 bytes a node.
+	// Measured at 8226, 3489, 2208 and 1552 bytes a node, read after a
+	// collection so the numbers are what is held rather than what had not
+	// been swept.
 	require.Greater(t, cost["resolved call, definition unified"],
 		cost["every field, as plain data"],
 		"unifying the definition in costs more than the same fields as data")
