@@ -103,6 +103,24 @@ func fields(value cue.Value) []field {
 	return sortByOrder(out)
 }
 
+// ByStepOrder puts values in the order their "step" attributes ask for,
+// leaving them as they are where none of them has one.
+//
+// Iterate does this to a value's own fields on its way down. A caller that
+// has picked out some of those fields itself, and iterates each of them in
+// turn, never passes through that and has to ask for the order here.
+func ByStepOrder(values []cue.Value) []cue.Value {
+	in := make([]field, len(values))
+	for i, v := range values {
+		in[i] = field{value: v}
+	}
+	out := make([]cue.Value, len(values))
+	for i, f := range sortByOrder(in) {
+		out[i] = f.value
+	}
+	return out
+}
+
 // sortByOrder orders fields by their "step" attribute. Templates that use no
 // step attribute - which is almost all of them - skip the sort entirely rather
 // than pay an attribute lookup per comparison.

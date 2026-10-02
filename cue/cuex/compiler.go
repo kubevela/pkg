@@ -17,9 +17,7 @@ limitations under the License.
 package cuex
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	goruntime "runtime"
 	"strconv"
 	"strings"
@@ -31,6 +29,7 @@ import (
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
 	"cuelang.org/go/cue/cuecontext"
+	"cuelang.org/go/cue/format"
 	"cuelang.org/go/cue/parser"
 	"github.com/spf13/pflag"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -55,6 +54,10 @@ const (
 	// concurrencyKey is the attribute a template marks a set of calls with to
 	// say they may run alongside each other: @concurrency(8)
 	concurrencyKey = "concurrency"
+	// orderKey is the attribute a template marks fields with to say what
+	// order their calls run in: @step(1). Spelled the same in cue/util,
+	// which is where the resolver sorts by it.
+	orderKey = "step"
 	// maxPerRenderKey caps how many of a function's calls one render may have
 	// in flight: a ceiling on what a template asks for with @concurrency,
 	// never a request on its own. It sits under #config, where the settings a
@@ -108,16 +111,31 @@ func (in *Compiler) CompileString(ctx context.Context, src string) (cue.Value, e
 
 // CompileConfig config for running compile process
 type CompileConfig struct {
+	// Optimise says which loops the prepass may answer before the build.
+	Optimise                 OptimisePolicy
 	ResolveProviderFunctions bool
 	PreResolveMutators       []func(context.Context, string) (string, error)
 	IntraResolveMutators     []*withIntraResolveMutation
 	Data                     []*withData
 }
 
+// WithOptimise sets which loops the prepass may answer before the build.
+//
+// Without it a compile uses the default, which permits a loop at or over
+// the threshold. Permits and not takes: a loop asking for @concurrency
+// keeps it, and one whose iterations cannot be enumerated or accounted for
+// is left alone whatever its length.
+func WithOptimise(p OptimisePolicy) CompileOption { return withOptimise{p} }
+
+type withOptimise struct{ policy OptimisePolicy }
+
+func (in withOptimise) ApplyTo(cfg *CompileConfig) { cfg.Optimise = in.policy }
+
 // NewCompileConfig create new CompileConfig
 func NewCompileConfig(opts ...CompileOption) *CompileConfig {
 	cfg := &CompileConfig{
 		ResolveProviderFunctions: true,
+		Optimise:                 DefaultOptimisePolicy,
 		PreResolveMutators:       nil,
 		IntraResolveMutators:     make([]*withIntraResolveMutation, 0),
 	}
@@ -280,10 +298,60 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 	if err != nil {
 		return cue.Value{}, err
 	}
+	// The context this render builds in, made here because the prepass
+	// reads in it too. It has to compile CUE's own packages for the
+	// template regardless, and that is most of what reading a loop's
+	// source costs, so a context of the prepass's own would pay for them
+	// twice. What it reads in here are lists of keys and nothing from a
+	// provider; the documents holding answers still get one context each,
+	// which is what buildIn is for.
+	cc := cuecontext.New()
+	// Loops of calls answered before CUE is handed the template at all,
+	// where the prepass can show it knows what an iteration reads.
+	// Anything it cannot account for it leaves alone, so what follows is
+	// the same work it always was, over fewer calls.
+	//
+	// Behind the same question the resolve is behind. A template that
+	// imports no provider package has no call to answer, and most
+	// definitions are that, so there is nothing there worth parsing the
+	// file to find out.
+	//
+	// And not at all while the caller's data is still to come. A fill for
+	// a field the template declares is unified into the value below, after
+	// this has run, so a call reading that field would be answered from
+	// what the template says on its own. Where that is a default, the
+	// answer is concrete and wrong rather than a decline.
+	if len(fills) == 0 && cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
+		answered, failed, took := in.prepassFile(ctx, f, imports, cfg.Optimise, cc, nil)
+		if failed != nil {
+			// A call the prepass made and that said no. The resolver
+			// would report the same thing, having made the same call,
+			// and letting it try would make every call in that loop a
+			// second time.
+			return cue.Value{}, failed
+		}
+		if took {
+			// A prepass that declines everything behaves exactly like one
+			// that works, so a controller has no way of telling which it is
+			// doing without this.
+			klog.V(2).InfoS("cuex answered provider calls before the render",
+				"calls", answered)
+			// The rewrite put new values under fields the parser had
+			// already resolved references to, and those references still
+			// point at what used to be there. Writing the file out and
+			// reading it back is what makes them point at what is there
+			// now.
+			if bs, ferr := format.Node(f); ferr == nil {
+				if reparsed, perr := parser.ParseFile("-", string(bs), parser.ParseComments); perr == nil {
+					f, src = reparsed, string(bs)
+				}
+			}
+		}
+	}
 	if err = bi.AddSyntax(f); err != nil {
 		return cue.Value{}, err
 	}
-	val := cuecontext.New().BuildInstance(bi)
+	val := cc.BuildInstance(bi)
 	for _, fill := range fills {
 		val = fill.fill(val)
 	}
@@ -316,7 +384,15 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 // carry anything.
 func carriesValueData(cfg *CompileConfig) bool {
 	for _, data := range cfg.Data {
-		if _, isValue := data.data.(cue.Value); isValue {
+		switch data.data.(type) {
+		case cue.Value:
+			return true
+		case ast.Node:
+			// Syntax is compiled as CUE rather than converted as data, so
+			// a "#do" in it is a definition and the field it is filled
+			// into is a call the file's own syntax never named. The scope
+			// would leave that field out and the call would be dropped
+			// without a word.
 			return true
 		}
 	}
@@ -622,7 +698,11 @@ func pendingCalls(value cue.Value, executed map[string]bool, scope callScope) []
 		util.Iterate(value, look)
 		return pending
 	}
-	for _, each := range under {
+	// The fields are in the order the file declares them, and a template
+	// that asked for an order with @step wants that one. Iterate sorts a
+	// value's own fields on its way down, which the walk from the root
+	// passed through and this does not.
+	for _, each := range util.ByStepOrder(under) {
 		util.Iterate(each, look)
 	}
 	return pending
@@ -696,7 +776,7 @@ func (in callScope) enumerate(value cue.Value) ([]cue.Value, bool) {
 	out := make([]cue.Value, 0, len(in))
 	for it.Next() {
 		sel := it.Selector()
-		if named[sel.String()] {
+		if named[bareName(sel)] {
 			out = append(out, it.Value())
 			continue
 		}
@@ -705,6 +785,21 @@ func (in callScope) enumerate(value cue.Value) ([]cue.Value, bool) {
 		}
 	}
 	return out, true
+}
+
+// bareName is a selector's name with any constraint marker taken off.
+//
+// The names come from the syntax, which writes a field as _enc whether it
+// is declared _enc, _enc? or _enc!, while a selector spells the optional
+// one _enc?. Comparing the two as they stand matches a plain field and
+// misses an optional one, and a call under a field this does not match is
+// dropped without a word.
+func bareName(sel cue.Selector) string {
+	name := sel.String()
+	if !sel.IsConstraint() {
+		return name
+	}
+	return strings.TrimSuffix(strings.TrimSuffix(name, "?"), "!")
 }
 
 // concurrencyAt reads how many calls a template will have running at once
@@ -1129,8 +1224,9 @@ func applyResults(value cue.Value, results []callResult) cue.Value {
 	// fields in the rendered output.
 	overlay := &overlayNode{}
 	var rest []callResult
+	writer := &answerWriter{cc: value.Context()}
 	for _, result := range results {
-		if expr, ok := resultSyntax(value.Context(), result.ret, result.opaque); ok && overlay.set(result.call.fill, expr) {
+		if expr, ok := writer.write(result.ret, result.opaque); ok && overlay.set(result.call.fill, expr) {
 			continue
 		}
 		rest = append(rest, result)
@@ -1167,19 +1263,55 @@ func applyResults(value cue.Value, results []callResult) cue.Value {
 // result must not depend on whether the template asked for its calls to run
 // together, so the conversion has to be the one the rest of the resolver uses.
 func resultSyntax(cc *cue.Context, ret any, opaque bool) (ast.Expr, bool) {
+	return answerWriter{cc: cc}.syntax(ret, opaque)
+}
+
+// answerWriter turns what providers returned into syntax, holding the one
+// blank value a Go result is filled into.
+//
+// The blank depends on nothing but the context, so it is the same value
+// every time, and building it is a fifth of what writing an answer back
+// costs: 3.4us and 5.5KB of 18.4us and 28.8KB. Both callers write a
+// pass or a batch of answers in a loop, so both have somewhere to hold it.
+type answerWriter struct {
+	cc *cue.Context
+	// blank is built on first use rather than up front, since a pass whose
+	// results are all cue.Values never needs one.
+	blank cue.Value
+	built bool
+}
+
+func (w *answerWriter) fresh() (cue.Value, bool) {
+	if w.cc == nil {
+		return cue.Value{}, false
+	}
+	if !w.built {
+		w.blank, w.built = w.cc.CompileString(""), true
+	}
+	return w.blank, w.blank.Err() == nil
+}
+
+func (w answerWriter) syntax(ret any, opaque bool) (ast.Expr, bool) {
+	return (&w).write(ret, opaque)
+}
+
+func (w *answerWriter) write(ret any, opaque bool) (ast.Expr, bool) {
 	val, isValue := ret.(cue.Value)
 	if !isValue {
-		// A Go result is whatever JSON can hold, and JSON is CUE, so it can be
-		// parsed into syntax directly. Building it into a value and reading the
-		// syntax back out of it is three passes over the same data, and the
-		// syntax is all that is wanted.
-		if expr, ok := jsonSyntax(ret); ok {
-			return expr, true
-		}
-		if cc == nil {
+		// Filled, the way a result reaches the value when its call ran on
+		// its own.
+		//
+		// Reading it as JSON and parsing that is quicker and does not
+		// agree. JSON has one number, so a whole float comes back an int
+		// and a []byte comes back the base64 string it encodes to, and a
+		// template declaring $returns?: {num: float} then renders for one
+		// call and conflicts for two. Nothing about a result may depend on
+		// how many calls shared its pass.
+		blank, ok := w.fresh()
+		if !ok {
 			return nil, false
 		}
-		val = cc.CompileString("").FillPath(cue.Path{}, ret)
+		val = blank.FillPath(cue.Path{}, ret)
 		if val.Err() != nil {
 			return nil, false
 		}
@@ -1204,32 +1336,6 @@ func resultSyntax(cc *cue.Context, ret any, opaque bool) (ast.Expr, bool) {
 		return nil, false
 	}
 }
-
-// jsonSyntax reads a Go result as syntax by way of JSON.
-//
-// It reports no for anything JSON cannot hold, a NaN or an infinity, and for
-// anything that does not parse back, so the caller falls to building a value
-// as before rather than losing the result.
-//
-// A null is turned down as well, and that one is not about failing. Filling a
-// nil into a value gives top, a field that was never answered, where JSON
-// gives null, a field answered with nothing. A provider returning an unset
-// pointer means the former, so anything with a null in it goes the long way
-// round. The test is on the encoded bytes, so a string that merely reads
-// "null" goes the long way too, which costs a little and is never wrong.
-func jsonSyntax(ret any) (ast.Expr, bool) {
-	bs, err := json.Marshal(ret)
-	if err != nil || bytes.Contains(bs, nullBytes) {
-		return nil, false
-	}
-	expr, err := parser.ParseExpr("-", bs)
-	if err != nil {
-		return nil, false
-	}
-	return expr, true
-}
-
-var nullBytes = []byte("null")
 
 // overlayNode is a tree of results keyed by where they go, keeping the order
 // they were added in.
@@ -1347,8 +1453,16 @@ func unconstrained(path cue.Path) cue.Path {
 	out := make([]cue.Selector, len(sels))
 	for i, sel := range sels {
 		out[i] = sel
-		if sel.IsConstraint() && sel.LabelType() == cue.StringLabel {
+		if !sel.IsConstraint() {
+			continue
+		}
+		switch sel.LabelType() {
+		case cue.StringLabel:
 			out[i] = cue.Str(sel.Unquoted())
+		case cue.HiddenLabel:
+			// a hidden field is its own kind of label, and rebuilding it
+			// as a string one makes a different field that spells the same
+			out[i] = cue.Hid(bareName(sel), sel.PkgPath())
 		}
 	}
 	return cue.MakePath(out...)
