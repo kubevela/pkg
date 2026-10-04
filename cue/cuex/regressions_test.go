@@ -81,6 +81,60 @@ out: a.$returns
 	require.EqualValues(t, 1, probeRuns.Load())
 }
 
+// The route the duplicate declaration above actually arrives by.
+//
+// WithExtraData reaches a template through its source: it appends
+// "key: <data>" for the parameter to be read back. For a key under a field
+// the template already declares, that is a second declaration of that
+// field, so a template declaring template: with a call under it had every
+// such call made twice. No template author has to do anything unusual for
+// this: kubevela renders every Config through
+// cuex.WithExtraData("template.parameter", ...) in
+// pkg/cue/script/template.go, from the config controller, the config
+// factory and the validating webhook, so the webhook made the calls a
+// second time on top.
+//
+// Measured on 31c8736, which is #144 as merged: two runs with the extra
+// data and one without.
+func TestExtraDataForADeclaredFieldStillCallsOnce(t *testing.T) {
+	c := cuex.NewCompilerWithInternalPackages(probePackage())
+	// the shape a config template has: the calls live under template, and
+	// the parameters are supplied into template.parameter
+	src := `
+import "vela/probe"
+template: {
+	parameter: {word: *"default" | string}
+	out: probe.#Do & {$params: parameter.word}
+}
+`
+	for _, tc := range []struct {
+		name string
+		opts []cuex.CompileOption
+		want string
+	}{
+		{"on its own", nil, "default"},
+		{
+			"with the parameters supplied the way a Config render supplies them",
+			[]cuex.CompileOption{
+				cuex.WithExtraData("template.parameter", map[string]any{"word": "given"}),
+			},
+			"given",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probeRuns.Store(0)
+			v, err := c.CompileStringWithOptions(context.Background(), src, tc.opts...)
+			require.NoError(t, err)
+			got, err := v.LookupPath(cue.ParsePath("template.out.$returns")).String()
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got,
+				"the parameters have to reach the call")
+			require.EqualValues(t, 1, probeRuns.Load(),
+				"the call has to be made once, however the field came to be declared twice")
+		})
+	}
+}
+
 func TestProbeResultTypeDoesNotDependOnCompany(t *testing.T) {
 	c := cuex.NewCompilerWithInternalPackages(probePackage())
 	ctx := context.Background()
