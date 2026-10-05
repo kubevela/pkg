@@ -113,6 +113,11 @@ type optimised struct {
 	// loops is how many loops it took, and calls how many it answered, so a
 	// caller can say whether it did anything.
 	loops, calls int
+	// why is the reason it took nothing at all, where that was decided for
+	// the whole file rather than loop by loop. Those decisions are not in
+	// declined, which is keyed by field, so without this a file refused
+	// outright says nothing about it.
+	why string
 }
 
 // prepass answers what it can of a template's annotated loops. It reports
@@ -131,7 +136,7 @@ func (in *Compiler) prepass(
 	rep := &report{declined: map[string]string{}}
 	calls, failed, took := in.prepassFile(ctx, f, imports, policy, cuecontext.New(), rep)
 	if failed != nil || !took {
-		return optimised{declined: rep.declined}, false
+		return optimised{declined: rep.declined, why: rep.why}, false
 	}
 	return optimised{file: f, loops: 1, calls: calls, declined: rep.declined}, true
 }

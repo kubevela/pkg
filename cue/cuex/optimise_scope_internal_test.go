@@ -73,6 +73,13 @@ func TestFreeIdents(t *testing.T) {
 			`x: {z: y, let y = a}`, []string{"a"}},
 		{"a let in a comprehension binds after itself",
 			`x: {for i in src {let d = i * 2, "\(i)": d}}`, []string{"src"}},
+		// the same let as a clause rather than in the body, which is a
+		// branch of its own: the clauses are walked in order and what a
+		// let binds is in scope for the clauses after it and for the body
+		{"a let clause binds for what follows it",
+			`x: {for i in src let d = i * 2 {"\(i)": d}}`, []string{"src"}},
+		{"a let clause reads what is in scope where it is written",
+			`x: {for i in src let d = other {"\(i)": d}}`, []string{"src", "other"}},
 		{"the blank identifier is not a reference",
 			`x: {for _, v in src {"k": v}}`, []string{"src"}},
 
