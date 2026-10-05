@@ -131,11 +131,12 @@ func TestTheShippedPolicySeparatesTheShapes(t *testing.T) {
 // counted has to say so rather than guess.
 func TestLiteralLength(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		src    string
-		inline bool
-		want   int
-		known  bool
+		name     string
+		src      string
+		inline   bool
+		selector bool
+		want     int
+		known    bool
 	}{
 		{name: "a list written out", src: `keys: ["a", "b", "c"]`, want: 3, known: true},
 		{name: "an empty list", src: `keys: []`, want: 0, known: true},
@@ -147,6 +148,10 @@ func TestLiteralLength(t *testing.T) {
 		{name: "a name declared as something else says nothing", src: `keys: {a: 1}`},
 		{name: "a call says nothing", src: `keys: list.Range(0, 10, 1)`},
 		{name: "an undeclared name says nothing", src: `other: 1`},
+		// A source that is neither a list nor a name: the commonest real
+		// one, a loop over something a parameter supplies. Nothing can be
+		// said about its length without evaluating it.
+		{name: "a selector says nothing", src: `keys: {items: ["a"]}`, selector: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f, err := parser.ParseFile("-", tc.src, parser.ParseComments)
@@ -157,8 +162,14 @@ func TestLiteralLength(t *testing.T) {
 			// the source as a template writes it: the name it declared, or
 			// the list itself where the loop holds it directly
 			var source ast.Expr = ast.NewIdent("keys")
-			if tc.inline {
+			switch {
+			case tc.inline:
 				source = f.Decls[0].(*ast.Field).Value
+			case tc.selector:
+				source = &ast.SelectorExpr{
+					X:   ast.NewIdent("keys"),
+					Sel: ast.NewIdent("items"),
+				}
 			}
 			n, known := literalLength(scope, source)
 			require.Equal(t, tc.known, known)
@@ -198,4 +209,28 @@ out: {for i in _idx {"\(i)": _b["\(i)"].$returns + _lone["\(i)"].$returns}}
 	require.True(t, took)
 	require.EqualValues(t, 40, OptimiseStats.Calls.Load(),
 		"the chain is worth answering at twenty and the loner is not")
+}
+
+// Where an error about an answered call says the call was, which is the
+// field the template wrote and not the document it was answered in.
+func TestLoopPathNamesTheTemplatesOwnField(t *testing.T) {
+	for _, tc := range []struct {
+		name, loop, key, want string
+	}{
+		{"a plain field", "calls", "k0", "calls.k0"},
+		{"a definition", "#made", "k0", "#made.k0"},
+		{"a hidden field", "_calls", "k0", "_calls.k0"},
+		{"a hidden definition", "_#made", "k0", "_#made.k0"},
+		{"no field at all", "", "k0", "k0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, loopPath(tc.loop, tc.key).String())
+		})
+	}
+}
+
+// The identifier scan is asked about whatever a template holds, including
+// nothing.
+func TestFreeIdentsOfNothing(t *testing.T) {
+	require.Empty(t, freeIdents(nil))
 }

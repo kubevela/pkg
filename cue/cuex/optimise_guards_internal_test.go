@@ -104,3 +104,47 @@ out: {for i in _idx {"\(i)": _s1["\(i)"].$returns}}
 	require.NoError(t, err)
 	require.NoError(t, v.LookupPath(cue.ParsePath("out")).Err())
 }
+
+// A stage that indexes the stage before it by something other than the
+// iteration's own value, which is the case narrowing has to work out by
+// building a document rather than by reading the syntax.
+//
+// Nearly every template keys a loop by "\(i)" over a loop bound to i, and
+// that is recognised without evaluating anything. A key with anything else
+// in it is not, so the keys each iteration reads are worked out by building
+// a small document for them. Without that the whole earlier stage would be
+// carried into every iteration, and a loop this wide would be declined for
+// being too big to carry.
+func TestNarrowingByAKeyThatHasToBeEvaluated(t *testing.T) {
+	c := NewCompilerWithDefaultInternalPackages()
+	ctx := context.Background()
+	imports := c.PackageManager.GetImports()
+
+	// _s0 is keyed "k0", "k1" and so on; _s1 reads _s0["k\(i)"], which is
+	// not the loop variable written out
+	src := `import "vela/base64"
+import "list"
+
+_idx: list.Range(0, 40, 1)
+_s0: {for i in _idx {"k\(i)": base64.#Encode & {$params: "seed-\(i)"}}}
+_s1: {for i in _idx {"\(i)": base64.#Encode & {$params: _s0["k\(i)"].$returns}}}
+out: {for i in _idx {"\(i)": _s1["\(i)"].$returns}}
+`
+	OptimiseStats.Calls.Store(0)
+	out, took := c.prepass(ctx, src, imports, DefaultOptimisePolicy)
+	require.True(t, took, "declined: %v", out.declined)
+	require.Equal(t, 80, out.calls,
+		"both stages should be answered, which needs the second to be given "+
+			"the one element of the first that it reads")
+
+	// and the answers are the resolver's
+	var rendered [2]string
+	for i, policy := range []OptimisePolicy{{}, DefaultOptimisePolicy} {
+		v, err := c.CompileStringWithOptions(ctx, src, WithOptimise(policy))
+		require.NoError(t, err)
+		bs, err := v.LookupPath(cue.ParsePath("out")).MarshalJSON()
+		require.NoError(t, err)
+		rendered[i] = string(bs)
+	}
+	require.Equal(t, rendered[0], rendered[1])
+}
