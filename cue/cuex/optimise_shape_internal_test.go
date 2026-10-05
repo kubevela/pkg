@@ -18,6 +18,7 @@ package cuex
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"cuelang.org/go/cue/format"
@@ -57,6 +58,12 @@ func TestAnAnsweredCallKeepsOnlyWhatIsRead(t *testing.T) {
 		"base64 of seed-0 has to be in what is handed on, as a literal")
 	require.NotContains(t, string(bs), "base64.#Encode",
 		"and the call it came from should be gone, replaced by it")
-	require.Contains(t, string(bs), paramsKey,
-		"and the parameters render, so dropping them would change output")
+	// Not that $params appears somewhere: the answers are four iterations
+	// and dropping it from three of them would still pass that. Every
+	// iteration's own parameters have to be there.
+	for i := 0; i < 4; i++ {
+		require.Contains(t, string(bs), fmt.Sprintf(`"seed-%d"`, i),
+			"iteration %d keeps the parameters it was called with, "+
+				"which render and so would change the output if dropped", i)
+	}
 }

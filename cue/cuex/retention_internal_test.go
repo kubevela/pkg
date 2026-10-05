@@ -40,11 +40,19 @@ import (
 // Same number of calls either way, arranged flat or in a chain, so anything
 // that moves is the arrangement and not the work.
 
+// flatSrc is calls calls, none of them reading another.
+//
+// The same imports and the same work per call as chainedSrc, including the
+// slice, so the only thing that differs between the two is whether a call
+// reads the one before it. Without that the comparison would be measuring
+// strings.SliceRunes as much as it measures depth.
 func flatSrc(calls int) string {
 	var b strings.Builder
-	b.WriteString("import \"vela/base64\"\n")
+	b.WriteString("import \"vela/base64\"\nimport \"strings\"\n")
 	for i := 0; i < calls; i++ {
-		fmt.Fprintf(&b, "x%d: base64.#Encode & {$params: \"hello-%d\"}\n", i, i)
+		fmt.Fprintf(&b,
+			"x%d: base64.#Encode & {$params: strings.SliceRunes(\"seed-%d-padding\", 0, 8)}\n",
+			i, i)
 	}
 	return b.String()
 }
@@ -101,11 +109,11 @@ func TestDoesARenderHoldEveryRound(t *testing.T) {
 			calls, groups, byGroups[groups]/1024, int(byGroups[groups])/calls)
 	}
 
-	// The same calls arranged in eight dependent groups rather than one
-	// flat one, so the only thing that changed is how many rounds the
-	// resolver needed. Measured at two and a half times; asserted well
-	// under that, because the number is a heap reading and the claim is
-	// only that depth is not free.
+	// The same calls, the same imports and the same work in each of them,
+	// arranged in eight dependent groups rather than one flat one, so the
+	// only thing that changed is how many rounds the resolver needed.
+	// Asserted well under what it measures, because the number is a heap
+	// reading and the claim is only that depth is not free.
 	require.Greater(t, byGroups[8], byGroups[1]*3/2,
 		"a render holding only its result would not grow with the number of rounds")
 }

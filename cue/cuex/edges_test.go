@@ -174,6 +174,7 @@ func TestEdgeBatchBoundaries(t *testing.T) {
 		{10, 10}, {10, 5}, {11, 5}, {10, 1}, {10, 100}, {1, 100}, {101, 10}, {100, 3},
 	} {
 		edgeRuns.Store(0)
+		cuex.OptimiseStats.Calls.Store(0)
 		v, err := c.CompileStringWithOptions(context.Background(), edgeLoop(tc.n, "#Do"),
 			cuex.WithOptimise(cuex.OptimisePolicy{Enabled: true, Threshold: 1, Batch: tc.batch}))
 		require.NoError(t, err, "n=%d batch=%d", tc.n, tc.batch)
@@ -190,6 +191,11 @@ func TestEdgeBatchBoundaries(t *testing.T) {
 		require.Equal(t, tc.n, seen, "n=%d batch=%d: every iteration should be there", tc.n, tc.batch)
 		require.EqualValues(t, tc.n, edgeRuns.Load(),
 			"n=%d batch=%d: every call once and no more", tc.n, tc.batch)
+		// The count above is the same whether the batches answered these
+		// calls or the prepass declined and the resolver did, so on its
+		// own it says nothing about the batch arithmetic it is here for.
+		require.EqualValues(t, tc.n, cuex.OptimiseStats.Calls.Load(),
+			"n=%d batch=%d: the batches have to be what answered them", tc.n, tc.batch)
 	}
 }
 
@@ -435,6 +441,21 @@ y: {for i in _idx {"\(i)": _c["\(i)"].$returns}}
 out: "\(x["4"])\(y["4"])"`,
 			path: "out", want: `"p4p4"`,
 		},
+		{
+			// A template reading past the end of what its own loop made.
+			// The wantErr arm exists for this: a template the resolver
+			// rejects must not come out rendered because the prepass
+			// answered the loop first, and until there was a case using
+			// it that branch ran for nothing.
+			name: "a read past the end of the loop",
+			src: `
+import "vela/edge"
+import "list"
+_idx: list.Range(0, 30, 1)
+_c: {for i in _idx {"\(i)": edge.#Do & {$params: "p\(i)"}}}
+out: _c["99"].$returns`,
+			path: "out", wantErr: "undefined field",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			read := func(opt cuex.CompileOption) (string, error) {
@@ -449,6 +470,9 @@ out: "\(x["4"])\(y["4"])"`,
 			onJSON, onErr := read(on)
 
 			if tc.wantErr != "" {
+				// Both arms have to fail, and for the same reason: a
+				// template that the resolver rejects must not render
+				// because the prepass answered it first.
 				require.Error(t, offErr, "the resolver")
 				require.Contains(t, offErr.Error(), tc.wantErr, "the resolver")
 				require.Error(t, onErr, "the prepass")

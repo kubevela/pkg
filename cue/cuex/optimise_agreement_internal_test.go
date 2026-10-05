@@ -124,6 +124,58 @@ out: {
 	}
 }
 
+// The same thing again, by the other route into the value.
+//
+// An intra-resolve mutation runs on the built value, after the prepass and
+// before the resolve, and it can change anything: the field a call reads
+// its parameters from included. So a prepass that answered first answered
+// from what the template said on its own.
+//
+// Found by review after the fill above was fixed, which is the lesson
+// worth keeping: the question was never "does WithData break this" but
+// "what else is put into the value after this runs", and there were two
+// answers.
+func TestAMutationBeforeTheCallsReachesThem(t *testing.T) {
+	c := NewCompilerWithInternalPackages(agreePackage(nil))
+	src := `import "vela/agree"
+
+word: *"BEFORE" | string
+keys: ` + agreeKeys(12) + `
+
+calls: {
+	for k in keys {
+		(k): agree.#Echo & {$params: word + "-" + k}
+	}
+}
+out: {
+	for k in keys {
+		(k): calls[k].$returns
+	}
+}
+`
+	mutate := WithIntraResolveMutation("rewrite word",
+		func(_ context.Context, v cue.Value) (cue.Value, error) {
+			return v.FillPath(cue.ParsePath("word"), "AFTER"), nil
+		})
+
+	for _, tc := range []struct {
+		name   string
+		policy OptimisePolicy
+	}{{"resolver", resolverOnly}, {"prepass", prepassOn}} {
+		t.Run(tc.name, func(t *testing.T) {
+			agreeRuns.Store(0)
+			v, err := c.CompileStringWithOptions(context.Background(), src,
+				WithOptimise(tc.policy), mutate)
+			require.NoError(t, err)
+			got, err := v.LookupPath(cue.ParsePath(`out["k0"]`)).String()
+			require.NoError(t, err)
+			require.Equal(t, "r:AFTER-k0", got,
+				"the call has to see what the mutation left, not what the template said")
+			require.EqualValues(t, 12, agreeRuns.Load())
+		})
+	}
+}
+
 // A loop is taken or it is not, and the decision can only be made for the
 // whole of it. One iteration that cannot be answered used to be found
 // after the ones before it had already called their provider, and the

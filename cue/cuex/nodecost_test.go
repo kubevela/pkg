@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"runtime"
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -98,12 +99,16 @@ func TestACallCostsMoreThanItsAnswer(t *testing.T) {
 	}
 
 	answersOnly := func(n int) string {
-		src := "out: \"x\"\n"
+		// a Builder, not += in a loop: at four thousand nodes that copies
+		// the whole accumulated string every time and the test spends
+		// longer building its input than measuring anything
+		var b strings.Builder
+		b.WriteString("out: \"x\"\n")
 		for i := 0; i < n; i++ {
 			// what the call answered, at the path the call sat at
-			src += fmt.Sprintf("x%d: {$returns: %q}\n", i, base64Of(fmt.Sprintf("hello-%d", i)))
+			fmt.Fprintf(&b, "x%d: {$returns: %q}\n", i, base64Of(fmt.Sprintf("hello-%d", i)))
 		}
-		return src
+		return b.String()
 	}
 
 	t.Logf("%6s %14s %14s %8s", "n", "per call", "per answer", "ratio")
@@ -166,13 +171,15 @@ func TestWhereTheNodeCostIs(t *testing.T) {
 	const n = 4000
 	cost := map[string]int{}
 	for _, shape := range shapes {
-		src := "out: \"x\"\n"
-		if shape.node == nil {
-			src = widthTemplate(n)
-		} else {
+		src := widthTemplate(n)
+		if shape.node != nil {
+			var b strings.Builder
+			b.WriteString("out: \"x\"\n")
 			for i := 0; i < n; i++ {
-				src += shape.node(i) + "\n"
+				b.WriteString(shape.node(i))
+				b.WriteString("\n")
 			}
+			src = b.String()
 		}
 		runtime.GC()
 		var before, after runtime.MemStats

@@ -316,13 +316,20 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 	// definitions are that, so there is nothing there worth parsing the
 	// file to find out.
 	//
-	// And not at all while the caller's data is still to come. A fill for
-	// a field the template declares is unified into the value below, after
-	// this has run, so a call reading that field would be answered from
-	// what the template says on its own. Where that is a default, the
-	// answer is concrete and wrong rather than a decline.
-	if len(fills) == 0 && cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
-		answered, failed, took := in.prepassFile(ctx, f, imports, cfg.Optimise, cc, nil)
+	// And not at all while anything is still to be put into the value.
+	// Both a fill and a mutation land below, after this has run, so a call
+	// reading what they change would be answered from what the template
+	// says on its own. Where that is a default the answer comes out
+	// concrete and wrong rather than declining, which is the one way this
+	// can be wrong rather than merely slower.
+	//
+	// The walk below says the same thing about itself two blocks down: a
+	// mutation replaces the value outright and cannot be read from here.
+	// It is the same argument and it applies with more force here, since
+	// this answers calls rather than deciding how much to look at.
+	settled := len(fills) == 0 && len(cfg.IntraResolveMutators) == 0
+	if settled && cfg.ResolveProviderFunctions && in.mayContainCalls(src, f, cfg, imports) {
+		loops, answered, failed, took := in.prepassFile(ctx, f, imports, cfg.Optimise, cc, nil)
 		if failed != nil {
 			// A call the prepass made and that said no. The resolver
 			// would report the same thing, having made the same call,
@@ -335,7 +342,7 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 			// that works, so a controller has no way of telling which it is
 			// doing without this.
 			klog.V(2).InfoS("cuex answered provider calls before the render",
-				"calls", answered)
+				"loops", loops, "calls", answered)
 			// The rewrite put new values under fields the parser had
 			// already resolved references to, and those references still
 			// point at what used to be there. Writing the file out and

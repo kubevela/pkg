@@ -134,15 +134,16 @@ func (in *Compiler) prepass(
 		return optimised{}, false
 	}
 	rep := &report{declined: map[string]string{}}
-	calls, failed, took := in.prepassFile(ctx, f, imports, policy, cuecontext.New(), rep)
+	loops, calls, failed, took := in.prepassFile(ctx, f, imports, policy, cuecontext.New(), rep)
 	if failed != nil || !took {
 		return optimised{declined: rep.declined, why: rep.why}, false
 	}
-	return optimised{file: f, loops: 1, calls: calls, declined: rep.declined}, true
+	return optimised{file: f, loops: loops, calls: calls, declined: rep.declined}, true
 }
 
 // prepassFile answers what it can of a file's loops, in place. It reports
-// how many calls it answered and whether it took anything at all.
+// how many loops it took and how many calls it answered, and whether it
+// took anything at all.
 func (in *Compiler) prepassFile(
 	ctx context.Context,
 	f *ast.File,
@@ -150,9 +151,9 @@ func (in *Compiler) prepassFile(
 	policy OptimisePolicy,
 	reading *cue.Context,
 	rep *report,
-) (int, error, bool) {
+) (int, int, error, bool) {
 	if !policy.Enabled {
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
 	// Asked of the template as written, and kept. The rounds below rewrite
 	// it as they answer, so asking again later would say no whatever the
@@ -164,15 +165,16 @@ func (in *Compiler) prepassFile(
 	// decline the rest. Passes are repeated while any make progress,
 	// which is the same shape the resolver's rounds have and for the same
 	// reason.
-	total := 0
+	loops, total := 0, 0
 	for {
-		n, failed, took := in.prepassRound(ctx, f, imports, policy, chained, reading, rep)
+		took1, n, failed, took := in.prepassRound(ctx, f, imports, policy, chained, reading, rep)
 		if failed != nil {
-			return 0, failed, false
+			return 0, 0, failed, false
 		}
 		if !took {
 			break
 		}
+		loops += took1
 		total += n
 		// A round replaced what was under a field, and every reference the
 		// parser resolved to it still points at what used to be there. The
@@ -189,16 +191,17 @@ func (in *Compiler) prepassFile(
 		*f = *reparsed
 	}
 	if total == 0 {
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
 	// Answering a loop can be the last use of a provider package, and CUE
 	// will not build a file that imports something it does not use.
 	pruneImports(f)
 	onItsOwnLine(f)
-	return total, nil, true
+	return loops, total, nil, true
 }
 
-// prepassRound answers what it can of a file's loops in one pass over it.
+// prepassRound answers what it can of a file's loops in one pass over it,
+// reporting how many loops it took and how many calls that came to.
 func (in *Compiler) prepassRound(
 	ctx context.Context,
 	f *ast.File,
@@ -207,10 +210,10 @@ func (in *Compiler) prepassRound(
 	chained map[string]bool,
 	reading *cue.Context,
 	rep *report,
-) (int, error, bool) {
+) (int, int, error, bool) {
 	scope, ok := scopeOfFile(f)
 	if !ok {
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
 	if declaresOurNames(f) {
 		// The documents built below hold the iteration under a name of
@@ -218,7 +221,7 @@ func (in *Compiler) prepassRound(
 		// name would have its own field answered, or a good loop declined,
 		// and either way it would be this reading something it wrote.
 		rep.note("file:declaresOurNames")
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
 	if asksForAnOrder(f) {
 		// A step attribute says what order the calls run in, and the
@@ -227,7 +230,7 @@ func (in *Compiler) prepassRound(
 		// the same thing and is not something to get wrong quietly. Four
 		// of the six thousand CUE files in this workspace use one.
 		rep.note("file:asksForAnOrder")
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
 	providers := in.PackageManager.GetProviders()
 
@@ -259,7 +262,7 @@ func (in *Compiler) prepassRound(
 			// The call was made and it said no. Handing the loop back
 			// would make every call in it a second time.
 			rebind(f)
-			return 0, failed, false
+			return 0, 0, failed, false
 		}
 		if name, _, err := ast.LabelName(field.Label); err == nil {
 			if took {
@@ -282,9 +285,9 @@ func (in *Compiler) prepassRound(
 	// borrowed, which are the template's own nodes.
 	rebind(f)
 	if loops == 0 {
-		return 0, nil, false
+		return 0, 0, nil, false
 	}
-	return calls, nil, true
+	return loops, calls, nil, true
 }
 
 // pruneImports drops the imports nothing in the file refers to any more.

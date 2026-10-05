@@ -51,6 +51,10 @@ func TestNarrowToRefusesWhatItCannotCount(t *testing.T) {
 		require.Len(t, out, 1)
 		kept := out[0].Value.(*ast.StructLit)
 		require.Len(t, kept.Elts, 1, "only the key that is read is carried")
+		// which one, since a count of one passes whether it kept a or b
+		label, _, err := ast.LabelName(kept.Elts[0].(*ast.Field).Label)
+		require.NoError(t, err)
+		require.Equal(t, "a", label, "and it is the key that was read")
 	})
 
 	t.Run("a declaration that is not a struct", func(t *testing.T) {
