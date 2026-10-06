@@ -1490,8 +1490,9 @@ func ready(call pendingCall, pending []pendingCall, stillPending map[string]bool
 }
 
 // paramsResolved reports whether a call's parameters have a value yet. A call
-// with no parameters at all has nothing to wait for; what the provider makes
-// of that is its own business, as it always was.
+// with no $params has nothing to check here: a legacy call's top-level fields
+// hold its outputs as well as its inputs, and those stay unset until it runs, so
+// it is ordered by the calls it reads (callDependencies) alone.
 //
 // A NativeProviderFn is handed the parameters as a cue.Value and may mean to
 // take them unresolved - a schema, or an open disjunction. Such a call is
@@ -1537,16 +1538,17 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 // References are therefore followed through fields that are not themselves
 // calls, and stop at ones that are - what a call holds is that call's business
 // and reading into it here means reading whatever it has rendered.
+//
+// A call with no $params is written in the legacy style: its inputs are its own
+// top-level fields, so those are what it reads.
+//
+//	wait: op.#ConditionalWait & {continue: req.$returns != _|_}
 func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool) []string {
 	if len(pending) < 2 {
 		return nil // no peer to read, so nothing to read from one
 	}
-	params := call.value.LookupPath(paramsPath)
-	if !params.Exists() {
-		return nil
-	}
 	var queue []reference
-	if !collectReferences(params, &queue, 0) {
+	if !collectInputReferences(call.value, &queue) {
 		return peerKeys(call, pending)
 	}
 	waits := map[string]bool{}
@@ -1603,6 +1605,28 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 		keys = append(keys, key)
 	}
 	return keys
+}
+
+// collectInputReferences collects the references a call's inputs make: its
+// $params, or for a legacy call with none, each of its own top-level fields,
+// hidden ones included, since a provider may read those too. The
+// fields and not the call's expression, which is the conjunction with the
+// definition the call is made from, and reading into that definition reads the
+// package it lives in rather than anything the call was given.
+func collectInputReferences(call cue.Value, into *[]reference) bool {
+	if params := call.LookupPath(paramsPath); params.Exists() {
+		return collectReferences(params, into, 0)
+	}
+	it, err := call.Fields(cue.Optional(true), cue.Hidden(true))
+	if err != nil {
+		return false
+	}
+	for it.Next() {
+		if !collectReferences(it.Value(), into, 1) {
+			return false
+		}
+	}
+	return true
 }
 
 // reference is a path some value reads, kept with the root it is relative to
