@@ -160,7 +160,20 @@ func (in *PackageManager) GetPackages() []Package {
 	return append(in.Internals.Values(), in.Externals.Values()...)
 }
 
-// GetImports return all build.Instances built by given packages
+// GetImports return all build.Instances built by given packages.
+//
+// Every compile is handed the same instances, parsed once when the package
+// was registered. That is what keeps a render cheap: giving a compile its own
+// parse of them costs about eight times the build.
+//
+// It also means concurrent compiles share them, and CUE writes into an
+// instance as it resolves it, so building one from two goroutines at once is
+// a data race. Every writer stores the same value, which is why this has held
+// since v1.11 while the Application controller reconciles four at a time.
+// Nothing guarantees a later CUE keeps that property, so
+// TestConcurrentRendersAgree renders several at once and checks the answers
+// match. It is not built under the race detector, and it is the thing that
+// speaks up if a CUE bump changes this.
 func (in *PackageManager) GetImports() []*build.Instance {
 	return slices.Flatten(slices.Map(
 		in.GetPackages(),
