@@ -165,10 +165,21 @@ func TestResultSyntax(t *testing.T) {
 		require.Contains(t, exprString(t, cc, expr), `"x"`)
 	})
 
-	t.Run("a Go value needs no context", func(t *testing.T) {
-		expr, ok := resultSyntax(nil, map[string]any{"$returns": "x"}, false)
-		require.True(t, ok, "JSON is CUE, so it is read as syntax without building anything")
-		require.Contains(t, exprString(t, cc, expr), `"x"`)
+	t.Run("a Go value needs a context", func(t *testing.T) {
+		// It is filled, which is how a result reaches the value when its
+		// call ran on its own, and filling needs somewhere to fill into.
+		// Reading it as JSON instead needs nothing and does not agree:
+		// JSON has one number, so a whole float comes back an int, and the
+		// answer would depend on how many calls shared the pass.
+		_, ok := resultSyntax(nil, map[string]any{"$returns": "x"}, false)
+		require.False(t, ok)
+	})
+
+	t.Run("a whole number stays the type it was", func(t *testing.T) {
+		expr, ok := resultSyntax(cc, map[string]any{"$returns": 2.0}, false)
+		require.True(t, ok)
+		require.Contains(t, exprString(t, cc, expr), "2.0",
+			"a float that happens to be whole is still a float")
 	})
 
 	t.Run("a nil goes the long way round", func(t *testing.T) {
