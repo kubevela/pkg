@@ -106,6 +106,32 @@ fail:  rec.#Do & {$params: probe.$returns}
 probe: rec.#Do & {$params: "failed"}
 wait:  rec.#Do & {$params: "wait-now"}
 `, []string{"failed", "failed", "wait-now"}},
+		// a waits for c, which waits for b, written between them: b and then c
+		// run ahead of a, and the wait still comes last
+		"a chain written out of order, then a wait": {`
+a:    rec.#Do & {$params: c.$returns}
+b:    rec.#Do & {$params: "b"}
+c:    rec.#Do & {$params: b.$returns}
+wait: rec.#Do & {$params: "wait-now"}
+`, []string{"b", "b", "b", "wait-now"}},
+		// only what the first held call waits for may overtake it: y feeds a
+		// later held call, not a, so it waits its turn, and a runs before y
+		// can end the resolve
+		"a producer for a later held call does not overtake an earlier one": {`
+a: rec.#Do & {$params: r.$returns}
+b: rec.#Do & {$params: y.$returns}
+y: rec.#Do & {$params: "stop"}
+r: rec.#Do & {$params: "r"}
+`, []string{"r", "r", "stop"}},
+		// a definition can name a result as well as a field can
+		"a call revealed through a definition naming a result": {`
+probe:   rec.#Do & {$params: "failed"}
+#result: probe.$returns
+if #result == "failed" {
+	fail: rec.#Do & {$params: "fail"}
+}
+wait: rec.#Do & {$params: "wait-now"}
+`, []string{"failed", "fail", "wait-now"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step

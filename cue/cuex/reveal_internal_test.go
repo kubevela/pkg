@@ -83,6 +83,18 @@ copied: spec
 if check.$returns == "failed" {
 	out: copied
 }`, []string{"check"}, nil},
+		"a guard on a definition naming a result": {`
+check:   rec.#Do & {$params: "x"}
+#result: check.$returns
+if #result == "failed" {
+	fail: rec.#Do & {$params: "fail"}
+}`, []string{"check"}, []string{"fail"}},
+		"a guard on a hidden definition naming a result": {`
+check:    rec.#Do & {$params: "x"}
+_#result: check.$returns
+if _#result == "failed" {
+	fail: rec.#Do & {$params: "fail"}
+}`, []string{"check"}, []string{"fail"}},
 		// every call has $params and $returns: sharing those names, or reading
 		// a result some guard elsewhere also reads, does not make a call
 		// reveal one

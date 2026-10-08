@@ -128,11 +128,6 @@ func (g *revealGraph) close() *revealers {
 			continue
 		}
 		names[name] = true
-		if strings.HasPrefix(name, "#") {
-			// a definition is a schema: what it reads is not what a guard
-			// naming it reads
-			continue
-		}
 		for read := range g.reads[name] {
 			queue = append(queue, read)
 		}
