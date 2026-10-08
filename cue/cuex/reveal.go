@@ -227,12 +227,22 @@ func (g *revealGraph) addReads(name string, n ast.Node) {
 // those for reads would tie every call to every other.
 func identifiers(n ast.Node) map[string]bool {
 	names := map[string]bool{}
+	for _, ident := range referenceIdents(n) {
+		names[ident.Name] = true
+	}
+	return names
+}
+
+// referenceIdents is the identifiers that start the references an expression
+// makes.
+func referenceIdents(n ast.Node) []*ast.Ident {
+	var out []*ast.Ident
 	var walk func(ast.Node)
 	walk = func(n ast.Node) {
 		ast.Walk(n, func(n ast.Node) bool {
 			switch node := n.(type) {
 			case *ast.Ident:
-				names[node.Name] = true
+				out = append(out, node)
 			case *ast.SelectorExpr:
 				walk(node.X)
 				return false
@@ -252,7 +262,56 @@ func identifiers(n ast.Node) map[string]bool {
 		}, nil)
 	}
 	walk(n)
-	return names
+	return out
+}
+
+// fieldPaths is where each regular field of a file is, keyed by the field and
+// by its value, which is what a reference to it resolves to in the syntax:
+// through nested structs, and into a comprehension's or an embedding's body,
+// which add to the struct they sit in. A field it cannot place, under a
+// computed label, in a list or a hidden one, is left out.
+func fieldPaths(f *ast.File) map[ast.Node]cue.Path {
+	out := map[ast.Node]cue.Path{}
+	var walk func([]ast.Decl, []cue.Selector)
+	walk = func(decls []ast.Decl, prefix []cue.Selector) {
+		for _, d := range decls {
+			switch n := d.(type) {
+			case *ast.Field:
+				label := n.Label
+				if alias, ok := label.(*ast.Alias); ok {
+					if expr, ok := alias.Expr.(ast.Label); ok {
+						label = expr
+					}
+				}
+				name, _, err := ast.LabelName(label)
+				if err != nil || name == "" || strings.HasPrefix(name, "_") {
+					continue
+				}
+				sel := cue.Str(name)
+				if strings.HasPrefix(name, "#") {
+					sel = cue.Def(name)
+				}
+				path := append(append([]cue.Selector(nil), prefix...), sel)
+				out[n] = cue.MakePath(path...)
+				if n.Value != nil {
+					out[n.Value] = cue.MakePath(path...)
+				}
+				if st, ok := n.Value.(*ast.StructLit); ok {
+					walk(st.Elts, path)
+				}
+			case *ast.Comprehension:
+				if st, ok := n.Value.(*ast.StructLit); ok {
+					walk(st.Elts, prefix)
+				}
+			case *ast.EmbedDecl:
+				if st, ok := n.Expr.(*ast.StructLit); ok {
+					walk(st.Elts, prefix)
+				}
+			}
+		}
+	}
+	walk(f.Decls, nil)
+	return out
 }
 
 // mayHoldCall reports whether syntax writes a provider call: a call is a
@@ -300,37 +359,6 @@ func (in *Compiler) revealGraphOf(f *ast.File, cfg *CompileConfig, imports []*bu
 		g.merge(read)
 	}
 	return g, true
-}
-
-// closeNames follows what names read, by name, to everything they depend on.
-func closeNames(names map[string]bool, reads map[string]map[string]bool) map[string]bool {
-	out := map[string]bool{}
-	queue := make([]string, 0, len(names))
-	for name := range names {
-		queue = append(queue, name)
-	}
-	for len(queue) > 0 {
-		name := queue[0]
-		queue = queue[1:]
-		if out[name] {
-			continue
-		}
-		out[name] = true
-		for read := range reads[name] {
-			queue = append(queue, read)
-		}
-	}
-	return out
-}
-
-// pathNames reports whether any field a path goes through is one of names.
-func pathNames(path cue.Path, names map[string]bool) bool {
-	for _, sel := range path.Selectors() {
-		if name, ok := selectorName(sel); ok && names[name] {
-			return true
-		}
-	}
-	return false
 }
 
 // packageRevealGraph is a package's reading, kept with the instance it was read

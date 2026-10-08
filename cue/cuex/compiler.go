@@ -405,8 +405,8 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 		default:
 			reveal = graph.close()
 		}
-		if analysis != nil && read {
-			analysis.reads = graph.reads
+		if analysis != nil {
+			analysis.fields = fieldPaths(f)
 		}
 		return in.resolve(ctx, val, mayReveal, reveal, scope, analysis)
 	}
@@ -1618,9 +1618,10 @@ type analysisBuild struct {
 	build func() cue.Value
 	value cue.Value
 	built bool
-	// reads is what each field and let of the syntax reads, by name, for a
-	// read the reference search cannot follow (see isUnfollowable).
-	reads map[string]map[string]bool
+	// fields is where each of the template's fields is, so a read the
+	// reference search cannot follow, a let's for one, is followed through
+	// the syntax instead (see isUnfollowable).
+	fields map[ast.Node]cue.Path
 }
 
 // node is call as the analysis build has it. A resolve with no build of its
@@ -1637,11 +1638,39 @@ func (a *analysisBuild) node(call pendingCall) (cue.Value, bool) {
 	return node, node.Exists()
 }
 
-func (a *analysisBuild) syntaxReads() map[string]map[string]bool {
-	if a == nil {
-		return nil
+// syntaxPaths is where the fields an unfollowable read names are, following
+// lets to their expressions, reporting false where one of them is not a field
+// of the template the build knows the path of.
+func (a *analysisBuild) syntaxPaths(n ast.Node) ([]reference, bool) {
+	if a == nil || a.fields == nil || !a.built {
+		return nil, false
 	}
-	return a.reads
+	var refs []reference
+	ok := true
+	seen := map[ast.Node]bool{}
+	var visit func(ast.Node)
+	visit = func(n ast.Node) {
+		if n == nil || seen[n] {
+			return
+		}
+		seen[n] = true
+		for _, ident := range referenceIdents(n) {
+			switch decl := ident.Node.(type) {
+			case nil, *ast.ImportSpec:
+				// a builtin, or a package: not a read of the template
+			case *ast.LetClause:
+				visit(decl.Expr)
+			default:
+				if path, found := a.fields[decl]; found {
+					refs = append(refs, reference{root: a.value, path: path, key: path.String()})
+				} else {
+					ok = false
+				}
+			}
+		}
+	}
+	visit(n)
+	return refs, ok
 }
 
 // waitsForPeer reports whether the call reads output that another call has yet
@@ -1655,7 +1684,7 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 			if node, ok := waitingFor.analysis.node(call); ok {
 				read := call
 				read.value = node
-				waits = callDependencies(read, pending, executed, waitingFor.analysis.syntaxReads())
+				waits = callDependencies(read, pending, executed, waitingFor.analysis)
 			}
 		}
 		waitingFor.of[call.key] = waits
@@ -1685,7 +1714,7 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 // top-level fields, so those are what it reads.
 //
 //	wait: op.#ConditionalWait & {continue: req.$returns != _|_}
-func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool, reads map[string]map[string]bool) []string {
+func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool, syntax *analysisBuild) []string {
 	if len(pending) < 2 {
 		return nil // no peer to read, so nothing to read from one
 	}
@@ -1695,14 +1724,16 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 	}
 	waits := map[string]bool{}
 	seen := map[string]bool{}
-	unnamed, unfollowed := map[string]bool{}, false
+	unfollowed := false
 	for len(queue) > 0 {
 		ref := queue[0]
 		queue = queue[1:]
-		if ref.names != nil {
-			unfollowed = true
-			for name := range ref.names {
-				unnamed[name] = true
+		if ref.syntax != nil {
+			// a read the search cannot follow, followed in the syntax
+			refs, ok := syntax.syntaxPaths(ref.syntax)
+			queue = append(queue, refs...)
+			if !ok {
+				unfollowed = true
 			}
 			continue
 		}
@@ -1749,22 +1780,10 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 		}
 	}
 	if unfollowed {
-		// A read the search cannot follow is followed in the syntax, by name,
-		// to the calls it can reach, written before the call or after it.
-		// Where that names none, the call waits for what a template order
-		// lets it read: the calls written ahead of it.
-		names := closeNames(unnamed, reads)
-		found := false
-		for _, peer := range pending {
-			if peer.key != call.key && pathNames(peer.path, names) {
-				waits[peer.key] = true
-				found = true
-			}
-		}
-		if !found {
-			for _, key := range earlierKeys(call, pending) {
-				waits[key] = true
-			}
+		// A read the syntax could not place either: the call waits for what a
+		// template order lets it read, the calls written ahead of it.
+		for _, key := range earlierKeys(call, pending) {
+			waits[key] = true
 		}
 	}
 	if len(waits) == 0 {
@@ -1805,10 +1824,9 @@ type reference struct {
 	root cue.Value
 	path cue.Path
 	key  string
-	// names, when set, is a read the search cannot follow: a name with no
-	// path, such as a let, whose value is not there yet. They are the names
-	// its syntax reads.
-	names map[string]bool
+	// syntax, when set, is a read the search cannot follow: a name with no
+	// path, such as a let, whose value is not there yet, as written.
+	syntax ast.Node
 }
 
 // nearestExisting resolves a reference, falling back to the nearest ancestor
@@ -1857,22 +1875,6 @@ func isUnfollowable(v cue.Value) bool {
 	return false
 }
 
-// unfollowedNames is what an unfollowable read names in the syntax: a let's
-// expression, or the name itself.
-func unfollowedNames(v cue.Value) map[string]bool {
-	ident, ok := v.Source().(*ast.Ident)
-	if sel, isSel := v.Source().(*ast.SelectorExpr); isSel {
-		ident, ok = sel.X.(*ast.Ident)
-	}
-	if !ok {
-		return map[string]bool{}
-	}
-	if let, isLet := ident.Node.(*ast.LetClause); isLet {
-		return identifiers(let.Expr)
-	}
-	return map[string]bool{ident.Name: true}
-}
-
 // earlierKeys is the calls written ahead of call.
 func earlierKeys(call pendingCall, pending []pendingCall) []string {
 	var keys []string
@@ -1918,7 +1920,7 @@ func collectReferences(v cue.Value, into *[]reference, depth int) bool {
 		return true
 	}
 	if isUnfollowable(v) {
-		*into = append(*into, reference{names: unfollowedNames(v)})
+		*into = append(*into, reference{syntax: v.Source()})
 		return true
 	}
 	if op, args := v.Expr(); op != cue.NoOp || len(args) > 1 {

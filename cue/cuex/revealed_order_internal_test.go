@@ -151,6 +151,15 @@ n: l.$returns
 l: rec.#Do & {$params: "b"}
 stop: rec.#Do & {$params: "stop"}
 `, []string{"b", "s-b", "stop"}},
+		// a field elsewhere shares the name the let reads: it is not what the
+		// let reads, and its call, which ends the resolve, waits its turn
+		"a let read, beside an unrelated field of the same name": {`
+let v = n
+c: rec.#Do & {$params: "s-\(v)"}
+other: n: rec.#Do & {$params: "stop"}
+n: l.$returns
+l: rec.#Do & {$params: "b"}
+`, []string{"b", "s-b", "stop"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step
