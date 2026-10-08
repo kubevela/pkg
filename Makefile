@@ -5,7 +5,7 @@ LOCALBIN ?= $(shell pwd)/bin
 $(LOCALBIN):
 	mkdir -p $(LOCALBIN)
 ENVTEST ?= $(LOCALBIN)/setup-envtest
-ENVTEST_K8S_VERSION = 1.30.0
+ENVTEST_K8S_VERSION = 1.37.0
 
 generate:
 	go generate ./apis/...
@@ -23,7 +23,7 @@ unit-test: envtest
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test -v -coverpkg=./... -coverprofile=coverage.txt ./...
 
 lint: golangci
-	golangci-lint run ./...
+	$(GOLANGCILINT) run ./...
 
 reviewable: generate fmt vet tidy lint
 
