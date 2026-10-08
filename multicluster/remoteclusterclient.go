@@ -18,6 +18,7 @@ package multicluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"net/url"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/jellydator/ttlcache/v3"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/conversion/queryparams"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/apply"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
@@ -219,7 +222,9 @@ func (in *remoteClusterClient) Apply(ctx context.Context, obj runtime.ApplyConfi
 	if IsLocal(cluster) {
 		return in.defaultClient.Apply(ctx, obj, opts...)
 	}
-	return fmt.Errorf("Apply is not supported for remote cluster %q", cluster)
+	applyOpts := &client.ApplyOptions{}
+	applyOpts.ApplyOptions(opts)
+	return in.apply(ctx, cluster, obj, obj, "", applyOpts.AsPatchOptions())
 }
 
 // ApplySubResource for client.SubResourceClient
@@ -228,7 +233,54 @@ func (in *remoteClusterClient) ApplySubResource(ctx context.Context, obj runtime
 	if IsLocal(cluster) {
 		return in.defaultClient.SubResource(subResource).Apply(ctx, obj, opts...)
 	}
-	return fmt.Errorf("Apply is not supported for remote cluster %q", cluster)
+	applyOpts := &client.SubResourceApplyOptions{}
+	applyOpts.ApplyOpts(opts)
+	body := obj
+	if applyOpts.SubResourceBody != nil {
+		body = applyOpts.SubResourceBody
+	}
+	return in.apply(ctx, cluster, obj, body, subResource, applyOpts.AsPatchOptions())
+}
+
+// apply sends a server-side apply request for obj to the remote cluster and
+// decodes the response back into obj, the same way the controller-runtime
+// typed client does for the local cluster.
+func (in *remoteClusterClient) apply(ctx context.Context, cluster string, obj, body runtime.ApplyConfiguration, subResource string, patchOpts *metav1.PatchOptions) error {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal apply configuration: %w", err)
+	}
+	u := &unstructured.Unstructured{}
+	if err = u.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	o, err := in.getObjMeta(cluster, u)
+	if err != nil {
+		return err
+	}
+	req, err := apply.NewRequest(o, body)
+	if err != nil {
+		return fmt.Errorf("failed to create apply request: %w", err)
+	}
+	req = req.NamespaceIfScoped(o.GetNamespace(), o.isNamespaced()).
+		Resource(o.resource()).
+		Name(o.GetName())
+	if subResource != "" {
+		req = req.SubResource(subResource)
+	}
+	resp := req.VersionedParams(patchOpts, in.paramCodec).Do(ctx)
+	if err = resp.Error(); err != nil {
+		return err
+	}
+	var contentType string
+	raw, err := resp.ContentType(&contentType).Raw()
+	if err != nil {
+		return err
+	}
+	if contentType != "application/json" {
+		return fmt.Errorf("unexpected content type %q in apply response, expected application/json", contentType)
+	}
+	return json.Unmarshal(raw, obj)
 }
 
 // Create implements client.Client.

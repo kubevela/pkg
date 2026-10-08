@@ -17,6 +17,7 @@ limitations under the License.
 package multicluster_test
 
 import (
+	"context"
 	"os"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -57,6 +58,9 @@ var _ = Describe("Test multicluster client", func() {
 
 		By("Test basic functions")
 		tester.TestClientFunctions(c)
+
+		By("Test apply functions")
+		testApplyFunctions(context.Background(), c)
 
 		By("Test without ca")
 		c, err = multicluster.NewClient(cfg, multicluster.ClientOptions{

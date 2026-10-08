@@ -72,6 +72,7 @@ var _ = Describe("Test remote multicluster client", func() {
 			req := r.Clone(r.Context())
 			h, _ := url.Parse(cfg.Host)
 			h.Path = strings.TrimPrefix(r.URL.Path, prefix)
+			h.RawQuery = r.URL.RawQuery
 			req.URL = h
 			req.RequestURI = ""
 
@@ -215,6 +216,12 @@ var _ = Describe("Test remote multicluster client", func() {
 		cms.SetAPIVersion("v1")
 		cms.SetKind("ConfigMapList")
 		Ω(c.List(multicluster.WithCluster(context.Background(), "bad-cluster"), cms)).NotTo(Succeed())
+
+		By("Test apply on the local and the remote cluster")
+		testApplyFunctions(multicluster.WithCluster(context.Background(), multicluster.Local), c)
+		testApplyFunctions(ctx, c)
+		Ω(c.Apply(ctx, deploymentApply("default", "apply").WithAPIVersion("xxx"), applyFieldOwner)).NotTo(Succeed())
+		Ω(c.Apply(multicluster.WithCluster(context.Background(), "bad-cluster"), deploymentApply("default", "apply"), applyFieldOwner)).NotTo(Succeed())
 	})
 
 })
