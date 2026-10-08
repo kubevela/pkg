@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -231,10 +232,18 @@ func assertSameRun(t *testing.T, seed int64, src string, want, got []string, wan
 	if !check(t, fmt.Sprint(want) == fmt.Sprint(got), "seed %d: calls ran in a different order\nwant %v\ngot  %v\n%s", seed, want, got, src) {
 		return false
 	}
-	if !check(t, (wantErr == "") == (gotErr == ""), "seed %d: errors differ\nwant %q\ngot  %q\n%s", seed, wantErr, gotErr, src) {
+	if !check(t, sameError(wantErr, gotErr), "seed %d: errors differ\nwant %q\ngot  %q\n%s", seed, wantErr, gotErr, src) {
 		return false
 	}
 	return check(t, wantOut == gotOut, "seed %d: rendered differently\nwant %s\ngot  %s\n%s", seed, wantOut, gotOut, src)
+}
+
+// unreferencedLet is the one part of an error that is not stable: with more
+// than one unreferenced let, CUE names whichever it meets first.
+var unreferencedLet = regexp.MustCompile(`(unreferenced alias or let clause) \S+`)
+
+func sameError(want, got string) bool {
+	return unreferencedLet.ReplaceAllString(want, "$1") == unreferencedLet.ReplaceAllString(got, "$1")
 }
 
 func check(t *testing.T, ok bool, format string, args ...any) bool {

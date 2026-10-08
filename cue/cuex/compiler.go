@@ -396,9 +396,17 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 			}}
 		}
 		mayReveal := in.mayRevealCalls(f, cfg, imports)
+		graph, read := in.revealGraphOf(f, cfg, imports)
 		reveal := &revealers{}
-		if mayReveal {
-			reveal = in.revealersOf(f, cfg, imports)
+		switch {
+		case !mayReveal:
+		case !read:
+			reveal = &revealers{all: true}
+		default:
+			reveal = graph.close()
+		}
+		if analysis != nil && read {
+			analysis.reads = graph.reads
 		}
 		return in.resolve(ctx, val, mayReveal, reveal, scope, analysis)
 	}
@@ -1610,6 +1618,9 @@ type analysisBuild struct {
 	build func() cue.Value
 	value cue.Value
 	built bool
+	// reads is what each field and let of the syntax reads, by name, for a
+	// read the reference search cannot follow (see isUnfollowable).
+	reads map[string]map[string]bool
 }
 
 // node is call as the analysis build has it. A resolve with no build of its
@@ -1626,6 +1637,13 @@ func (a *analysisBuild) node(call pendingCall) (cue.Value, bool) {
 	return node, node.Exists()
 }
 
+func (a *analysisBuild) syntaxReads() map[string]map[string]bool {
+	if a == nil {
+		return nil
+	}
+	return a.reads
+}
+
 // waitsForPeer reports whether the call reads output that another call has yet
 // to produce. What a call reads is worked out once and remembered; each pass
 // only rechecks whether those calls have run.
@@ -1637,7 +1655,7 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 			if node, ok := waitingFor.analysis.node(call); ok {
 				read := call
 				read.value = node
-				waits = callDependencies(read, pending, executed)
+				waits = callDependencies(read, pending, executed, waitingFor.analysis.syntaxReads())
 			}
 		}
 		waitingFor.of[call.key] = waits
@@ -1667,7 +1685,7 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 // top-level fields, so those are what it reads.
 //
 //	wait: op.#ConditionalWait & {continue: req.$returns != _|_}
-func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool) []string {
+func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool, reads map[string]map[string]bool) []string {
 	if len(pending) < 2 {
 		return nil // no peer to read, so nothing to read from one
 	}
@@ -1677,12 +1695,15 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 	}
 	waits := map[string]bool{}
 	seen := map[string]bool{}
-	unnamed := false
+	unnamed, unfollowed := map[string]bool{}, false
 	for len(queue) > 0 {
 		ref := queue[0]
 		queue = queue[1:]
-		if ref.unnamed {
-			unnamed = true
+		if ref.names != nil {
+			unfollowed = true
+			for name := range ref.names {
+				unnamed[name] = true
+			}
 			continue
 		}
 		if seen[ref.key] || ref.key == call.key {
@@ -1727,11 +1748,23 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 			return peerKeys(call, pending)
 		}
 	}
-	if unnamed {
-		// It reads something it cannot name, so it waits for what a template
-		// order lets it read: the calls written ahead of it.
-		for _, key := range earlierKeys(call, pending) {
-			waits[key] = true
+	if unfollowed {
+		// A read the search cannot follow is followed in the syntax, by name,
+		// to the calls it can reach, written before the call or after it.
+		// Where that names none, the call waits for what a template order
+		// lets it read: the calls written ahead of it.
+		names := closeNames(unnamed, reads)
+		found := false
+		for _, peer := range pending {
+			if peer.key != call.key && pathNames(peer.path, names) {
+				waits[peer.key] = true
+				found = true
+			}
+		}
+		if !found {
+			for _, key := range earlierKeys(call, pending) {
+				waits[key] = true
+			}
 		}
 	}
 	if len(waits) == 0 {
@@ -1772,9 +1805,10 @@ type reference struct {
 	root cue.Value
 	path cue.Path
 	key  string
-	// unnamed is a read the search cannot follow: a name with no path, such
-	// as a let, whose value is not there yet.
-	unnamed bool
+	// names, when set, is a read the search cannot follow: a name with no
+	// path, such as a let, whose value is not there yet. They are the names
+	// its syntax reads.
+	names map[string]bool
 }
 
 // nearestExisting resolves a reference, falling back to the nearest ancestor
@@ -1823,6 +1857,22 @@ func isUnfollowable(v cue.Value) bool {
 	return false
 }
 
+// unfollowedNames is what an unfollowable read names in the syntax: a let's
+// expression, or the name itself.
+func unfollowedNames(v cue.Value) map[string]bool {
+	ident, ok := v.Source().(*ast.Ident)
+	if sel, isSel := v.Source().(*ast.SelectorExpr); isSel {
+		ident, ok = sel.X.(*ast.Ident)
+	}
+	if !ok {
+		return map[string]bool{}
+	}
+	if let, isLet := ident.Node.(*ast.LetClause); isLet {
+		return identifiers(let.Expr)
+	}
+	return map[string]bool{ident.Name: true}
+}
+
 // earlierKeys is the calls written ahead of call.
 func earlierKeys(call pendingCall, pending []pendingCall) []string {
 	var keys []string
@@ -1868,7 +1918,7 @@ func collectReferences(v cue.Value, into *[]reference, depth int) bool {
 		return true
 	}
 	if isUnfollowable(v) {
-		*into = append(*into, reference{unnamed: true})
+		*into = append(*into, reference{names: unfollowedNames(v)})
 		return true
 	}
 	if op, args := v.Expr(); op != cue.NoOp || len(args) > 1 {

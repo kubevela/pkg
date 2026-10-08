@@ -278,18 +278,59 @@ func mayHoldCall(n ast.Node) bool {
 // or a filled cue.Value can put a call the syntax does not show, every call
 // reveals.
 func (in *Compiler) revealersOf(f *ast.File, cfg *CompileConfig, imports []*build.Instance) *revealers {
-	if len(cfg.IntraResolveMutators) > 0 || carriesValueData(cfg) {
+	g, ok := in.revealGraphOf(f, cfg, imports)
+	if !ok {
 		return &revealers{all: true}
+	}
+	return g.close()
+}
+
+// revealGraphOf reads the template and the packages it imports, reporting false
+// where a mutation or a filled cue.Value can put what the syntax does not show.
+func (in *Compiler) revealGraphOf(f *ast.File, cfg *CompileConfig, imports []*build.Instance) (*revealGraph, bool) {
+	if len(cfg.IntraResolveMutators) > 0 || carriesValueData(cfg) {
+		return nil, false
 	}
 	g := readReveals(f)
 	for _, imported := range imports {
 		read, ok := in.packageReveals(imported)
 		if !ok {
-			return &revealers{all: true}
+			return nil, false
 		}
 		g.merge(read)
 	}
-	return g.close()
+	return g, true
+}
+
+// closeNames follows what names read, by name, to everything they depend on.
+func closeNames(names map[string]bool, reads map[string]map[string]bool) map[string]bool {
+	out := map[string]bool{}
+	queue := make([]string, 0, len(names))
+	for name := range names {
+		queue = append(queue, name)
+	}
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		if out[name] {
+			continue
+		}
+		out[name] = true
+		for read := range reads[name] {
+			queue = append(queue, read)
+		}
+	}
+	return out
+}
+
+// pathNames reports whether any field a path goes through is one of names.
+func pathNames(path cue.Path, names map[string]bool) bool {
+	for _, sel := range path.Selectors() {
+		if name, ok := selectorName(sel); ok && names[name] {
+			return true
+		}
+	}
+	return false
 }
 
 // packageRevealGraph is a package's reading, kept with the instance it was read

@@ -142,6 +142,15 @@ let v = n
 c: rec.#Do & {$params: "s-\(v)"}
 stop: rec.#Do & {$params: "stop"}
 `, []string{"a", "b", "s-b", "stop"}},
+		// the let reads a call written after the reader: that call still
+		// runs first
+		"a call reading a later call through a let": {`
+let v = n
+c: rec.#Do & {$params: "s-\(v)"}
+n: l.$returns
+l: rec.#Do & {$params: "b"}
+stop: rec.#Do & {$params: "stop"}
+`, []string{"b", "s-b", "stop"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step
