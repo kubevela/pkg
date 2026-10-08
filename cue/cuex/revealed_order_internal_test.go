@@ -132,6 +132,16 @@ if #result == "failed" {
 }
 wait: rec.#Do & {$params: "wait-now"}
 `, []string{"failed", "fail", "wait-now"}},
+		// the result is read through a let, which the reference search
+		// cannot follow and which CUE renders as concrete before the call
+		// it reads has run: the call still runs after what it reads
+		"a call reading a result through a let": {`
+l: [rec.#Do & {$params: "a"}, rec.#Do & {$params: "b"}]
+n: l[1].$returns
+let v = n
+c: rec.#Do & {$params: "s-\(v)"}
+stop: rec.#Do & {$params: "stop"}
+`, []string{"a", "b", "s-b", "stop"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step

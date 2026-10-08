@@ -1677,9 +1677,14 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 	}
 	waits := map[string]bool{}
 	seen := map[string]bool{}
+	unnamed := false
 	for len(queue) > 0 {
 		ref := queue[0]
 		queue = queue[1:]
+		if ref.unnamed {
+			unnamed = true
+			continue
+		}
 		if seen[ref.key] || ref.key == call.key {
 			continue
 		}
@@ -1722,6 +1727,13 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 			return peerKeys(call, pending)
 		}
 	}
+	if unnamed {
+		// It reads something it cannot name, so it waits for what a template
+		// order lets it read: the calls written ahead of it.
+		for _, key := range earlierKeys(call, pending) {
+			waits[key] = true
+		}
+	}
 	if len(waits) == 0 {
 		return nil
 	}
@@ -1760,6 +1772,9 @@ type reference struct {
 	root cue.Value
 	path cue.Path
 	key  string
+	// unnamed is a read the search cannot follow: a name with no path, such
+	// as a let, whose value is not there yet.
+	unnamed bool
 }
 
 // nearestExisting resolves a reference, falling back to the nearest ancestor
@@ -1792,6 +1807,18 @@ func owningExecutedCall(ref string, executed map[string]bool) bool {
 		if isUnder(ref, key) {
 			return true
 		}
+	}
+	return false
+}
+
+// isUnfollowable reports a value written as a name the reference search cannot
+// follow, a let's for one, that has no value yet. CUE renders an interpolation
+// of such a let as concrete, so neither the search nor the parameters being
+// concrete would show the read.
+func isUnfollowable(v cue.Value) bool {
+	switch v.Source().(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+		return v.IncompleteKind() == cue.BottomKind
 	}
 	return false
 }
@@ -1838,6 +1865,10 @@ func collectReferences(v cue.Value, into *[]reference, depth int) bool {
 		*into = append(*into, reference{root: root, path: path, key: path.String()})
 		// what the reference points at is reached by following it from the
 		// queue, not by descending into it here
+		return true
+	}
+	if isUnfollowable(v) {
+		*into = append(*into, reference{unnamed: true})
 		return true
 	}
 	if op, args := v.Expr(); op != cue.NoOp || len(args) > 1 {
