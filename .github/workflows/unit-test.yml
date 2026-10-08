@@ -12,7 +12,7 @@ on:
       - release-*
 
 env:
-  GO_VERSION: '1.22'
+  GO_VERSION: '1.27.1'
 
 jobs:
 
@@ -45,7 +45,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Lint
-        uses: golangci/golangci-lint-action@v3
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.14.0
 
       - name: Cache Go Dependencies
         uses: actions/cache@v4
@@ -59,7 +61,7 @@ jobs:
         with:
           version: 3.15.1
           kubebuilderOnly: false
-          kubernetesVersion: v1.31
+          kubernetesVersion: v1.37.0
 
       - name: Run unit-test
         run: make unit-test

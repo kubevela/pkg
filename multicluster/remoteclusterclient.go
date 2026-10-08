@@ -18,14 +18,17 @@ package multicluster
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/rand"
+	"mime"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/jellydator/ttlcache/v3"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/conversion/queryparams"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -33,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/apply"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
@@ -140,7 +144,7 @@ func (in *remoteClusterClient) GetRESTClient(gvk schema.GroupVersionKind) (rest.
 		if err != nil {
 			return nil, err
 		}
-		restClient, err := apiutil.RESTClientForGVK(gvk, true, in.config, in.codecs, httpClient)
+		restClient, err := apiutil.RESTClientForGVK(gvk, true, true, in.config, in.codecs, httpClient)
 		if err != nil {
 			return nil, err
 		}
@@ -211,6 +215,74 @@ func (in *remoteClusterClient) convertUnstructured(obj client.Object) (*unstruct
 		u.SetGroupVersionKind(gvk)
 	}
 	return u, nil
+}
+
+// Apply implements client.Client.
+func (in *remoteClusterClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.ApplyOption) error {
+	cluster, _ := ClusterFrom(ctx)
+	if IsLocal(cluster) {
+		return in.defaultClient.Apply(ctx, obj, opts...)
+	}
+	applyOpts := &client.ApplyOptions{}
+	applyOpts.ApplyOptions(opts)
+	return in.apply(ctx, cluster, obj, obj, "", applyOpts.AsPatchOptions())
+}
+
+// ApplySubResource for client.SubResourceClient
+func (in *remoteClusterClient) ApplySubResource(ctx context.Context, obj runtime.ApplyConfiguration, subResource string, opts ...client.SubResourceApplyOption) error {
+	cluster, _ := ClusterFrom(ctx)
+	if IsLocal(cluster) {
+		return in.defaultClient.SubResource(subResource).Apply(ctx, obj, opts...)
+	}
+	applyOpts := &client.SubResourceApplyOptions{}
+	applyOpts.ApplyOpts(opts)
+	body := obj
+	if applyOpts.SubResourceBody != nil {
+		body = applyOpts.SubResourceBody
+	}
+	return in.apply(ctx, cluster, obj, body, subResource, applyOpts.AsPatchOptions())
+}
+
+// apply sends a server-side apply request for obj to the remote cluster and
+// decodes the response back into obj, the same way the controller-runtime
+// typed client does for the local cluster.
+func (in *remoteClusterClient) apply(ctx context.Context, cluster string, obj, body runtime.ApplyConfiguration, subResource string, patchOpts *metav1.PatchOptions) error {
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("failed to marshal apply configuration: %w", err)
+	}
+	u := &unstructured.Unstructured{}
+	if err = u.UnmarshalJSON(data); err != nil {
+		return err
+	}
+	o, err := in.getObjMeta(cluster, u)
+	if err != nil {
+		return err
+	}
+	req, err := apply.NewRequest(o, body)
+	if err != nil {
+		return fmt.Errorf("failed to create apply request: %w", err)
+	}
+	req = req.NamespaceIfScoped(o.GetNamespace(), o.isNamespaced()).
+		Resource(o.resource()).
+		Name(o.GetName())
+	if subResource != "" {
+		req = req.SubResource(subResource)
+	}
+	resp := req.VersionedParams(patchOpts, in.paramCodec).Do(ctx)
+	if err = resp.Error(); err != nil {
+		return err
+	}
+	var contentType string
+	raw, err := resp.ContentType(&contentType).Raw()
+	if err != nil {
+		return err
+	}
+	// a proxy in front of the apiserver may add parameters such as charset
+	if mediaType, _, _ := mime.ParseMediaType(contentType); mediaType != "application/json" {
+		return fmt.Errorf("unexpected content type %q in apply response, expected application/json", contentType)
+	}
+	return json.Unmarshal(raw, obj)
 }
 
 // Create implements client.Client.
@@ -610,6 +682,11 @@ var _ client.SubResourceClient = &remoteClusterSubResourceClient{}
 type remoteClusterSubResourceClient struct {
 	subResource string
 	base        *remoteClusterClient
+}
+
+// Apply implement client.SubResourceClient
+func (in *remoteClusterSubResourceClient) Apply(ctx context.Context, obj runtime.ApplyConfiguration, opts ...client.SubResourceApplyOption) error {
+	return in.base.ApplySubResource(ctx, obj, in.subResource, opts...)
 }
 
 // Get implement client.SubResourceClient
