@@ -26,6 +26,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -63,6 +64,7 @@ var _ = Describe("Test remote multicluster client", func() {
 		_, err = multicluster.NewRemoteClusterClient(badCfg, controllerruntimeclient.Options{})
 		Ω(err).NotTo(Succeed())
 
+		var qualifyJSON atomic.Bool
 		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if strings.Contains(r.URL.Path, "/bad-cluster/") {
 				http.Error(w, "bad cluster", 400)
@@ -90,6 +92,10 @@ var _ = Describe("Test remote multicluster client", func() {
 				for _, val := range values {
 					w.Header().Add(key, val)
 				}
+			}
+			// like some proxies, qualify JSON responses with a charset
+			if qualifyJSON.Load() && w.Header().Get("Content-Type") == "application/json" {
+				w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			}
 			w.WriteHeader(resp.StatusCode)
 			if resp.Body != nil {
@@ -219,7 +225,9 @@ var _ = Describe("Test remote multicluster client", func() {
 
 		By("Test apply on the local and the remote cluster")
 		testApplyFunctions(multicluster.WithCluster(context.Background(), multicluster.Local), c)
+		qualifyJSON.Store(true)
 		testApplyFunctions(ctx, c)
+		qualifyJSON.Store(false)
 		Ω(c.Apply(ctx, deploymentApply("default", "apply").WithAPIVersion("xxx"), applyFieldOwner)).NotTo(Succeed())
 		Ω(c.Apply(multicluster.WithCluster(context.Background(), "bad-cluster"), deploymentApply("default", "apply"), applyFieldOwner)).NotTo(Succeed())
 	})

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"mime"
 	"net/url"
 	"strings"
 	"time"
@@ -277,7 +278,8 @@ func (in *remoteClusterClient) apply(ctx context.Context, cluster string, obj, b
 	if err != nil {
 		return err
 	}
-	if contentType != "application/json" {
+	// a proxy in front of the apiserver may add parameters such as charset
+	if mediaType, _, _ := mime.ParseMediaType(contentType); mediaType != "application/json" {
 		return fmt.Errorf("unexpected content type %q in apply response, expected application/json", contentType)
 	}
 	return json.Unmarshal(raw, obj)
