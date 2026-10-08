@@ -963,16 +963,27 @@ func (in *Compiler) runLevel(
 		}
 	}
 	// Readiness is settled before anything runs, only so the level knows how
-	// many results it is about to collect. It has no side effects and cannot
-	// fail, so working it out early changes nothing a caller can see - unlike
-	// looking a provider up early, which would report a missing one before
-	// calls ahead of it in the walk had run.
+	// many results it is about to collect. It cannot fail, and what it reads it
+	// reads from the analysis build (see analysisBuild), so working it out early
+	// changes nothing a caller can see - unlike looking a provider up early,
+	// which would report a missing one before calls ahead of it in the walk had
+	// run.
+	//
+	// A call held back holds back the calls written after it, except those it
+	// is waiting for: a call after it may end the resolve, as a workflow step's
+	// wait does, and must not run ahead of one written before it.
 	runnable := make([]bool, len(level))
 	some := false
+	held, awaited := false, map[string]bool{}
 	for i, call := range level {
-		if ready(call, pending, stillPending, executed, waitingFor) {
+		if ready(call, pending, stillPending, executed, waitingFor) && (!held || awaited[call.key]) {
 			runnable[i] = true
 			some = true
+			continue
+		}
+		held = true
+		for _, key := range waitingFor.of[call.key] {
+			awaited[key] = true
 		}
 	}
 	if !some {

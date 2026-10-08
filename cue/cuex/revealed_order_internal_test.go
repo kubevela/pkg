@@ -90,6 +90,22 @@ if check.$returns == "failed" {
 }
 wait: rec.#Do & {$params: "wait-now"}
 `, []string{"failed", "fail", "wait-now"}},
+		// the fail waits for the probe; the wait, written after it, reads
+		// nothing, and must not run ahead of it. Named apart from #Step's
+		// check, which names are matched against.
+		"a call after one that waits does not overtake it": {`
+probe: rec.#Do & {$params: "failed"}
+msg:   probe.$returns
+fail:  rec.#Do & {$params: msg}
+wait:  rec.#Do & {$params: "wait-now"}
+`, []string{"failed", "failed", "wait-now"}},
+		// what the fail reads is written after it: the producer still runs
+		// first, and the wait still comes last
+		"a reader ahead of what it reads, then a wait": {`
+fail:  rec.#Do & {$params: probe.$returns}
+probe: rec.#Do & {$params: "failed"}
+wait:  rec.#Do & {$params: "wait-now"}
+`, []string{"failed", "failed", "wait-now"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step

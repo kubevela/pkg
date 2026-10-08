@@ -83,6 +83,17 @@ copied: spec
 if check.$returns == "failed" {
 	out: copied
 }`, []string{"check"}, nil},
+		// every call has $params and $returns: sharing those names, or reading
+		// a result some guard elsewhere also reads, does not make a call
+		// reveal one
+		"a call beside a guard on another": {`
+check: rec.#Do & {$params: "x"}
+if check.$returns == "failed" {
+	fail: rec.#Do & {$params: "fail"}
+}
+probe: rec.#Do & {$params: "y"}
+msg:   probe.$returns
+next:  rec.#Do & {$params: msg}`, []string{"check"}, []string{"probe", "next", "fail"}},
 		// the fanout writes calls, but over a list no call produces
 		"a loop over a list no call produces": {`
 idx: [0, 1, 2]

@@ -128,6 +128,11 @@ func (g *revealGraph) close() *revealers {
 			continue
 		}
 		names[name] = true
+		if strings.HasPrefix(name, "#") {
+			// a definition is a schema: what it reads is not what a guard
+			// naming it reads
+			continue
+		}
 		for read := range g.reads[name] {
 			queue = append(queue, read)
 		}
@@ -221,16 +226,37 @@ func (g *revealGraph) addReads(name string, n ast.Node) {
 	}
 }
 
-// identifiers is every name an expression reads: the start of each reference,
-// and each field a selector goes through.
+// identifiers is every name an expression reads: the start of each reference.
+// A field's label, the fields a selector goes through and a comprehension's
+// bindings are not reads; every call has a $params and a $returns, and taking
+// those for reads would tie every call to every other.
 func identifiers(n ast.Node) map[string]bool {
 	names := map[string]bool{}
-	ast.Walk(n, func(n ast.Node) bool {
-		if ident, ok := n.(*ast.Ident); ok {
-			names[ident.Name] = true
-		}
-		return true
-	}, nil)
+	var walk func(ast.Node)
+	walk = func(n ast.Node) {
+		ast.Walk(n, func(n ast.Node) bool {
+			switch node := n.(type) {
+			case *ast.Ident:
+				names[node.Name] = true
+			case *ast.SelectorExpr:
+				walk(node.X)
+				return false
+			case *ast.Field:
+				if node.Value != nil {
+					walk(node.Value)
+				}
+				return false
+			case *ast.ForClause:
+				walk(node.Source)
+				return false
+			case *ast.LetClause:
+				walk(node.Expr)
+				return false
+			}
+			return true
+		}, nil)
+	}
+	walk(n)
 	return names
 }
 
