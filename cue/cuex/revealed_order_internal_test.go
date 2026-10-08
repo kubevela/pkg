@@ -160,6 +160,27 @@ other: n: rec.#Do & {$params: "stop"}
 n: l.$returns
 l: rec.#Do & {$params: "b"}
 `, []string{"b", "s-b", "stop"}},
+		// the let, its reader and its producer sit in a struct unified with a
+		// definition, as a step's fields usually do
+		"a let read inside a unified struct": {`
+#D: {...}
+x: #D & {
+	let v = n
+	c: rec.#Do & {$params: "s-\(v)"}
+	n: l.$returns
+	l: rec.#Do & {$params: "b"}
+}
+stop: rec.#Do & {$params: "stop"}
+`, []string{"b", "s-b", "stop"}},
+		"a let read inside a parenthesised struct": {`
+x: ({
+	let v = n
+	c: rec.#Do & {$params: "s-\(v)"}
+	n: l.$returns
+	l: rec.#Do & {$params: "b"}
+})
+stop: rec.#Do & {$params: "stop"}
+`, []string{"b", "s-b", "stop"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step

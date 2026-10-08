@@ -22,6 +22,7 @@ import (
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/ast"
 	"cuelang.org/go/cue/build"
+	"cuelang.org/go/cue/token"
 )
 
 // revealers says which calls can reveal another once they have run, so a round
@@ -267,7 +268,8 @@ func referenceIdents(n ast.Node) []*ast.Ident {
 
 // fieldPaths is where each regular field of a file is, keyed by the field and
 // by its value, which is what a reference to it resolves to in the syntax:
-// through nested structs, and into a comprehension's or an embedding's body,
+// through nested structs, including one unified, disjoined or parenthesised
+// with something else, and into a comprehension's or an embedding's body,
 // which add to the struct they sit in. A field it cannot place, under a
 // computed label, in a list or a hidden one, is left out.
 func fieldPaths(f *ast.File) map[ast.Node]cue.Path {
@@ -296,15 +298,15 @@ func fieldPaths(f *ast.File) map[ast.Node]cue.Path {
 				if n.Value != nil {
 					out[n.Value] = cue.MakePath(path...)
 				}
-				if st, ok := n.Value.(*ast.StructLit); ok {
+				for _, st := range structsIn(n.Value) {
 					walk(st.Elts, path)
 				}
 			case *ast.Comprehension:
-				if st, ok := n.Value.(*ast.StructLit); ok {
+				for _, st := range structsIn(n.Value) {
 					walk(st.Elts, prefix)
 				}
 			case *ast.EmbedDecl:
-				if st, ok := n.Expr.(*ast.StructLit); ok {
+				for _, st := range structsIn(n.Expr) {
 					walk(st.Elts, prefix)
 				}
 			}
@@ -312,6 +314,22 @@ func fieldPaths(f *ast.File) map[ast.Node]cue.Path {
 	}
 	walk(f.Decls, nil)
 	return out
+}
+
+// structsIn is the struct literals an expression contributes to the value it
+// is: itself, or the operands of a unification, a disjunction or brackets.
+func structsIn(e ast.Expr) []*ast.StructLit {
+	switch x := e.(type) {
+	case *ast.StructLit:
+		return []*ast.StructLit{x}
+	case *ast.ParenExpr:
+		return structsIn(x.X)
+	case *ast.BinaryExpr:
+		if x.Op == token.AND || x.Op == token.OR {
+			return append(structsIn(x.X), structsIn(x.Y)...)
+		}
+	}
+	return nil
 }
 
 // mayHoldCall reports whether syntax writes a provider call: a call is a

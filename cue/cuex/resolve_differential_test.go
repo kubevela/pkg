@@ -75,6 +75,8 @@ package gen
 	$params:   string
 }
 
+#Wrap: {...}
+
 #Guarded: {
 	tag:   string
 	probe: #Do & {$params: "probe-" + tag}
@@ -149,7 +151,7 @@ func genTemplate(r *rand.Rand) string {
 			fmt.Fprintf(&b, "stop%d: gen.#Stop & {$params: \"stop%d\"}\n", k, k)
 			continue
 		}
-		switch r.Intn(13) {
+		switch r.Intn(14) {
 		case 0, 1:
 			fmt.Fprintf(&b, "c%d: %s & {$params: %s}\n", k, def(), param(k))
 			results = append(results, fmt.Sprintf("c%d.$returns", k))
@@ -189,6 +191,9 @@ func genTemplate(r *rand.Rand) string {
 			fmt.Fprintf(&b, "x%d: y: z: {\n\tif %s != \"\" {\n\t\tinner: {\n\t\t\tif %s != \"\" {\n\t\t\t\tcall: %s & {$params: %s}\n\t\t\t}\n\t\t}\n\t}\n}\n",
 				k, earlier(), earlier(), def(), param(k))
 			results = append(results, fmt.Sprintf("x%d.y.z.inner.call.$returns", k))
+		case 13:
+			fmt.Fprintf(&b, "u%d: gen.#Wrap & {\n\tlet w = %s\n\tcall: %s & {$params: \"u%d-\\(w)\"}\n}\n", k, earlier(), def(), k)
+			results = append(results, fmt.Sprintf("u%d.call.$returns", k))
 		}
 	}
 	return b.String()
