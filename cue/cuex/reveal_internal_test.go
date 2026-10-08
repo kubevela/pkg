@@ -69,6 +69,20 @@ let r = check.$returns
 if r == "failed" {
 	fail: rec.#Do & {$params: "fail"}
 }`, []string{"check"}, []string{"fail"}},
+		// the body names its call rather than writing it
+		"a guard writing a call a let holds": {`
+check: rec.#Do & {$params: "x"}
+let next = rec.#Do & {$params: "n"}
+if check.$returns == "failed" {
+	out: next
+}`, []string{"check"}, nil},
+		"a guard copying a field that holds a call, through another": {`
+check:  rec.#Do & {$params: "x"}
+spec:   rec.#Do & {$params: "n"}
+copied: spec
+if check.$returns == "failed" {
+	out: copied
+}`, []string{"check"}, nil},
 		// the fanout writes calls, but over a list no call produces
 		"a loop over a list no call produces": {`
 idx: [0, 1, 2]

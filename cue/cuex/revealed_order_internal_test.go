@@ -81,6 +81,15 @@ check: rec.#Do & {$params: "failed"}
 "\(check.$returns)": rec.#Do & {$params: "fail"}
 wait: rec.#Do & {$params: "wait-now"}
 `, []string{"failed", "fail", "wait-now"}},
+		// the guarded body copies a call a let holds
+		"a call a let holds, revealed by a guard": {`
+check: rec.#Do & {$params: "failed"}
+let next = rec.#Do & {$params: "fail"}
+if check.$returns == "failed" {
+	fail: next
+}
+wait: rec.#Do & {$params: "wait-now"}
+`, []string{"failed", "fail", "wait-now"}},
 		// the comprehension is the package's, as a workflow step's often is
 		"a call a package's definition reveals": {`
 step: rec.#Step

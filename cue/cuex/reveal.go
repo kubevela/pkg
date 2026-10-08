@@ -33,9 +33,10 @@ import (
 // A call reveals one where a comprehension whose body can hold a call, or a
 // label computed for a field that can, reads the call's result. That is read
 // from the syntax by name: what the comprehension's clauses or the label name,
-// and what the fields so named read in turn. Names are not scoped, so two
-// fields sharing a name are taken for one another, which costs a search and
-// never an order. A call under any field so named reveals.
+// and what the fields so named read in turn. A body can hold a call by writing
+// one, or by naming a field or let that holds one. Names are not scoped, so
+// two fields sharing a name are taken for one another, which costs a search
+// and never an order. A call under any field so named reveals.
 type revealers struct {
 	// all is set where the syntax cannot say: every call reveals.
 	all   bool
@@ -68,20 +69,31 @@ func selectorName(sel cue.Selector) (string, bool) {
 	return "", false
 }
 
-// revealGraph is what one file's syntax says: the names a revealing clause or
-// label reads, and what each field reads, by name.
+// revealGraph is what one file's syntax says: each comprehension and computed
+// label that may write a call, what each field reads, and which fields write a
+// call, by name.
 type revealGraph struct {
-	seeds map[string]bool
-	reads map[string]map[string]bool
+	writers []callWriter
+	reads   map[string]map[string]bool
+	holds   map[string]bool
+}
+
+// callWriter is a comprehension or a computed label: what its clauses or label
+// read, what its body names, and whether the body writes a call itself.
+type callWriter struct {
+	reads  map[string]bool
+	names  map[string]bool
+	writes bool
 }
 
 func newRevealGraph() *revealGraph {
-	return &revealGraph{seeds: map[string]bool{}, reads: map[string]map[string]bool{}}
+	return &revealGraph{reads: map[string]map[string]bool{}, holds: map[string]bool{}}
 }
 
 func (g *revealGraph) merge(other *revealGraph) {
-	for name := range other.seeds {
-		g.seeds[name] = true
+	g.writers = append(g.writers, other.writers...)
+	for name := range other.holds {
+		g.holds[name] = true
 	}
 	for name, reads := range other.reads {
 		into := g.reads[name]
@@ -95,13 +107,20 @@ func (g *revealGraph) merge(other *revealGraph) {
 	}
 }
 
-// close follows what the seeds read, by name, to everything they depend on.
+// close finds the writers that can write a call, and follows what they read,
+// by name, to everything they depend on.
 func (g *revealGraph) close() *revealers {
-	names := map[string]bool{}
-	queue := make([]string, 0, len(g.seeds))
-	for name := range g.seeds {
-		queue = append(queue, name)
+	holds := g.holdsCall()
+	var queue []string
+	for _, w := range g.writers {
+		if !w.writes && !anyOf(w.names, holds) {
+			continue
+		}
+		for name := range w.reads {
+			queue = append(queue, name)
+		}
 	}
+	names := map[string]bool{}
 	for len(queue) > 0 {
 		name := queue[0]
 		queue = queue[1:]
@@ -116,6 +135,34 @@ func (g *revealGraph) close() *revealers {
 	return &revealers{names: names}
 }
 
+// holdsCall is every name whose value writes a call, or reads a name that
+// does.
+func (g *revealGraph) holdsCall() map[string]bool {
+	holds := map[string]bool{}
+	for name := range g.holds {
+		holds[name] = true
+	}
+	for changed := true; changed; {
+		changed = false
+		for name, reads := range g.reads {
+			if !holds[name] && anyOf(reads, holds) {
+				holds[name] = true
+				changed = true
+			}
+		}
+	}
+	return holds
+}
+
+func anyOf(names, in map[string]bool) bool {
+	for name := range names {
+		if in[name] {
+			return true
+		}
+	}
+	return false
+}
+
 // readReveals reads one file.
 func readReveals(f *ast.File) *revealGraph {
 	g := newRevealGraph()
@@ -125,38 +172,42 @@ func readReveals(f *ast.File) *revealGraph {
 			label := node.Label
 			if alias, ok := label.(*ast.Alias); ok {
 				// X=name: reading X reads the field
-				g.addReads(alias.Ident.Name, node.Value)
+				g.addField(alias.Ident.Name, node.Value)
 				if expr, ok := alias.Expr.(ast.Label); ok {
 					label = expr
 				}
 			}
 			if name, _, err := ast.LabelName(label); err == nil && name != "" {
-				g.addReads(name, node.Value)
+				g.addField(name, node.Value)
 			}
-			switch label := label.(type) {
+			switch label.(type) {
 			case *ast.Interpolation, *ast.ParenExpr:
-				if mayHoldCall(node.Value) {
-					g.addSeeds(label)
-				}
+				g.writers = append(g.writers, callWriter{
+					reads: identifiers(label), names: identifiers(node.Value), writes: mayHoldCall(node.Value)})
 			}
 		case *ast.LetClause:
-			g.addReads(node.Ident.Name, node.Expr)
+			g.addField(node.Ident.Name, node.Expr)
 		case *ast.Comprehension:
-			if mayHoldCall(node.Value) {
-				for _, clause := range node.Clauses {
-					g.addSeeds(clause)
+			reads := map[string]bool{}
+			for _, clause := range node.Clauses {
+				for name := range identifiers(clause) {
+					reads[name] = true
 				}
 			}
+			g.writers = append(g.writers, callWriter{
+				reads: reads, names: identifiers(node.Value), writes: mayHoldCall(node.Value)})
 		}
 		return true
 	}, nil)
 	return g
 }
 
-func (g *revealGraph) addSeeds(n ast.Node) {
-	for name := range identifiers(n) {
-		g.seeds[name] = true
+// addField records what a field or let reads, and whether it writes a call.
+func (g *revealGraph) addField(name string, n ast.Node) {
+	if mayHoldCall(n) {
+		g.holds[name] = true
 	}
+	g.addReads(name, n)
 }
 
 func (g *revealGraph) addReads(name string, n ast.Node) {
@@ -183,8 +234,9 @@ func identifiers(n ast.Node) map[string]bool {
 	return names
 }
 
-// mayHoldCall reports whether syntax can produce a provider call: a call is a
-// definition's, so syntax that names no definition and no #do produces none.
+// mayHoldCall reports whether syntax writes a provider call: a call is a
+// definition's, so syntax that names no definition and no #do writes none.
+// Syntax that names a field holding one is found by name (see holdsCall).
 func mayHoldCall(n ast.Node) bool {
 	found := false
 	ast.Walk(n, func(n ast.Node) bool {
