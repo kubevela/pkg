@@ -138,7 +138,7 @@ func resolveTimed(t *testing.T, in *Compiler, ctx context.Context, value cue.Val
 	t.Helper()
 	newValue := value
 	executed := map[string]bool{}
-	waitingFor := map[string][]string{}
+	waitingFor := &callWaits{of: map[string][]string{}}
 	providers := in.PackageManager.GetProviders()
 	var walkTimes []time.Duration
 	var roundTime time.Duration
@@ -151,7 +151,7 @@ func resolveTimed(t *testing.T, in *Compiler, ctx context.Context, value cue.Val
 			break
 		}
 		r := time.Now()
-		next, opaque, err := in.runRound(ctx, newValue, providers, pending, executed, waitingFor)
+		next, opaque, err := in.runRound(ctx, newValue, providers, pending, executed, waitingFor, nil)
 		roundTime += time.Since(r)
 		require.NoError(t, err)
 		newValue = next

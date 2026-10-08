@@ -60,6 +60,14 @@ package rec
 	$params:   string
 	$returns?: string
 }
+
+#Step: {
+	check: #Do & {$params: "failed"}
+	if check.$returns == "failed" {
+		fail: #Do & {$params: "fail"}
+	}
+	wait: #Do & {$params: "wait-now"}
+}
 `, map[string]cuexruntime.ProviderFn{
 		"do": cuexruntime.GenericProviderFn[orderIn, orderOut](
 			func(_ context.Context, in *orderIn) (*orderOut, error) {

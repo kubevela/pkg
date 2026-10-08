@@ -183,20 +183,13 @@ func TestResolveDivergences(t *testing.T) {
 	})
 }
 
-// TestCallsRunBeforeAFailureIsReported is the second deliberate difference,
-// and the one with teeth. A call whose parameters never settle is not ready,
-// so it waits while the calls that are ready run, and only fails once nothing
-// else is left. The resolver this replaced took calls in walk order and
-// stopped at the first one that failed, so the calls after it never ran.
-//
-// Nothing renders differently. What changes is how much has happened by the
-// time the error comes back, which for a provider that writes to a cluster is
-// the difference between one resource applied and all of them.
-//
-// This is the cost of batching rather than an oversight: running the ready
-// calls is the whole point, and which of them would have come after a failure
-// in walk order is not knowable before they run.
-func TestCallsRunBeforeAFailureIsReported(t *testing.T) {
+// TestAFailureStopsTheCallsWrittenAfterIt is the case the batch could get
+// wrong. A call whose parameters never settle waits only for the calls written
+// ahead of it; with none, it runs where it is written and its failure ends the
+// resolve, so the calls after it never run, as with the resolver this replaced.
+// A call after it may be one that ends the resolve another way, such as a
+// workflow step's wait, and must not run ahead of a call written before it.
+func TestAFailureStopsTheCallsWrittenAfterIt(t *testing.T) {
 	var ran []string
 	fn := cuexruntime.GenericProviderFn[struct {
 		Params string `json:"$params"`
@@ -235,8 +228,7 @@ c: order.#Get & {$params: "c"}`
 	ran = nil
 	_, newErr := c.Resolve(context.Background(), buildValue(t, c, src))
 	require.Error(t, newErr)
-	require.Equal(t, []string{"b", "c"}, ran,
-		"the ready calls run before the one that cannot")
+	require.Empty(t, ran, "the calls written after the failing one do not run")
 }
 
 // TestResolveIsDeterministic guards the property the ast overlay exists to
