@@ -95,7 +95,7 @@ func levelsTimed(t *testing.T, in *Compiler, ctx context.Context, value cue.Valu
 	t.Helper()
 	newValue := value
 	executed := map[string]bool{}
-	waitingFor := map[string][]string{}
+	waitingFor := &callWaits{of: map[string][]string{}}
 	providers := in.PackageManager.GetProviders()
 	levels := 0
 	var apply time.Duration
@@ -104,7 +104,7 @@ func levelsTimed(t *testing.T, in *Compiler, ctx context.Context, value cue.Valu
 	remaining := pending
 	for reread := false; len(remaining) > 0; reread = true {
 		start := time.Now()
-		next, rest, _, err := in.runLevel(ctx, newValue, providers, pending, remaining, executed, waitingFor, reread)
+		next, rest, _, _, err := in.runLevel(ctx, newValue, providers, pending, remaining, executed, waitingFor, reread, nil)
 		require.NoError(t, err)
 		apply += time.Since(start)
 		newValue, remaining = next, rest

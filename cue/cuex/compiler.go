@@ -102,6 +102,9 @@ type Compiler struct {
 	// by the built instance would add an entry every few minutes for the life
 	// of the process and hold the old parse tree with it.
 	packageComprehensions sync.Map
+	// packageRevealGraphs holds what each package's syntax says about which
+	// calls can reveal another; see revealers.
+	packageRevealGraphs sync.Map
 }
 
 // CompileString compile given cue string into cue.Value
@@ -380,7 +383,32 @@ func (in *Compiler) CompileStringWithOptions(ctx context.Context, src string, op
 			// gets a narrowed walk.
 			scope = scopeOf(f, imports)
 		}
-		return in.resolve(ctx, val, in.mayRevealCalls(f, cfg, imports), scope)
+		var analysis *analysisBuild
+		if len(cfg.IntraResolveMutators) == 0 {
+			// A mutation may do anything, and doing it twice is not ours to
+			// decide, so a mutated value is read where it is run.
+			analysis = &analysisBuild{build: func() cue.Value {
+				v := cuecontext.New().BuildInstance(bi)
+				for _, fill := range fills {
+					v = fill.fill(v)
+				}
+				return v
+			}}
+		}
+		mayReveal := in.mayRevealCalls(f, cfg, imports)
+		graph, read := in.revealGraphOf(f, cfg, imports)
+		reveal := &revealers{}
+		switch {
+		case !mayReveal:
+		case !read:
+			reveal = &revealers{all: true}
+		default:
+			reveal = graph.close()
+		}
+		if analysis != nil {
+			analysis.fields = fieldPaths(f)
+		}
+		return in.resolve(ctx, val, mayReveal, reveal, scope, analysis)
 	}
 	return val, nil
 }
@@ -595,18 +623,15 @@ func (in *Compiler) Resolve(ctx context.Context, value cue.Value) (cue.Value, er
 	// a caller holding only the value has no syntax to read, so it can say
 	// neither whether the value has a comprehension in it nor where a call
 	// could be. Both are assumed the expensive way.
-	return in.resolve(ctx, value, true, nil)
+	return in.resolve(ctx, value, true, &revealers{all: true}, nil, nil)
 }
 
 // resolve is Resolve, told whether the value can grow calls it does not have
 // yet. See mayRevealCalls.
-func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool, scope callScope) (cue.Value, error) {
+func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool, reveal *revealers, scope callScope, analysis *analysisBuild) (cue.Value, error) {
 	newValue := value
 	executed := map[string]bool{}
-	// what each call waits for, worked out the first time the call is seen and
-	// reused after: re-reading it every pass means re-reading a value that
-	// grows more expensive to inspect with every result applied to it
-	waitingFor := map[string][]string{}
+	waitingFor := &callWaits{of: map[string][]string{}, analysis: analysis}
 	providers := in.PackageManager.GetProviders()
 	for {
 		if pastDeadline(ctx) {
@@ -616,7 +641,7 @@ func (in *Compiler) resolve(ctx context.Context, value cue.Value, mayReveal bool
 		if len(pending) == 0 {
 			break
 		}
-		next, opaque, err := in.runRound(ctx, newValue, providers, pending, executed, waitingFor)
+		next, opaque, err := in.runRound(ctx, newValue, providers, pending, executed, waitingFor, reveal)
 		if err != nil {
 			return next, err
 		}
@@ -880,13 +905,18 @@ func pastDeadline(ctx context.Context) bool {
 // Whatever a round managed before an error is kept in the value it returns.
 // A caller looking at the value to see how far it got - which is the whole
 // point of a deadline - should see the calls that did run.
+//
+// The round ends early after a call that can reveal another (see revealers),
+// or whose result is a value its function built and may carry a call, so
+// Resolve searches the value again before the next.
 func (in *Compiler) runRound(
 	ctx context.Context,
 	value cue.Value,
 	providers map[string]cuexruntime.Provider,
 	pending []pendingCall,
 	executed map[string]bool,
-	waitingFor map[string][]string,
+	waitingFor *callWaits,
+	reveal *revealers,
 ) (cue.Value, bool, error) {
 	remaining := pending
 	// opaque means a round ran a function that builds its own cue.Value and
@@ -901,10 +931,14 @@ func (in *Compiler) runRound(
 			err         error
 			levelOpaque bool
 		)
-		if value, remaining, levelOpaque, err = in.runLevel(ctx, value, providers, pending, remaining, executed, waitingFor, reread); err != nil {
+		var stepped bool
+		if value, remaining, levelOpaque, stepped, err = in.runLevel(ctx, value, providers, pending, remaining, executed, waitingFor, reread, reveal); err != nil {
 			return value, opaque || levelOpaque, err
 		}
 		opaque = opaque || levelOpaque
+		if stepped {
+			break
+		}
 	}
 	return value, opaque, nil
 }
@@ -916,9 +950,10 @@ func (in *Compiler) runLevel(
 	providers map[string]cuexruntime.Provider,
 	pending, remaining []pendingCall,
 	executed map[string]bool,
-	waitingFor map[string][]string,
+	waitingFor *callWaits,
 	reread bool,
-) (cue.Value, []pendingCall, bool, error) {
+	reveal *revealers,
+) (cue.Value, []pendingCall, bool, bool, error) {
 	stillPending := make(map[string]bool, len(remaining))
 	for _, call := range remaining {
 		stillPending[call.key] = true
@@ -936,14 +971,40 @@ func (in *Compiler) runLevel(
 		}
 	}
 	// Readiness is settled before anything runs, only so the level knows how
-	// many results it is about to collect. It has no side effects and cannot
-	// fail, so working it out early changes nothing a caller can see - unlike
-	// looking a provider up early, which would report a missing one before
-	// calls ahead of it in the walk had run.
+	// many results it is about to collect. It cannot fail, and what it reads it
+	// reads from the analysis build (see analysisBuild), so working it out early
+	// changes nothing a caller can see - unlike looking a provider up early,
+	// which would report a missing one before calls ahead of it in the walk had
+	// run.
+	//
+	// The first call held back holds back the calls written after it, except
+	// those it waits for, directly or through each other: a call after it may
+	// end the resolve, as a workflow step's wait does, and must not run ahead
+	// of one written before it.
+	readyAt := make([]bool, len(level))
+	first := -1
+	for i, call := range level {
+		readyAt[i] = ready(call, pending, stillPending, executed, waitingFor)
+		if !readyAt[i] && first < 0 {
+			first = i
+		}
+	}
+	awaited := map[string]bool{}
+	if first >= 0 {
+		queue := append([]string(nil), waitingFor.of[level[first].key]...)
+		for len(queue) > 0 {
+			key := queue[0]
+			queue = queue[1:]
+			if !awaited[key] {
+				awaited[key] = true
+				queue = append(queue, waitingFor.of[key]...)
+			}
+		}
+	}
 	runnable := make([]bool, len(level))
 	some := false
 	for i, call := range level {
-		if ready(call, pending, stillPending, executed, waitingFor) {
+		if readyAt[i] && (first < 0 || i < first || awaited[call.key]) {
 			runnable[i] = true
 			some = true
 		}
@@ -961,12 +1022,12 @@ func (in *Compiler) runLevel(
 	opaque := false
 	for i := 0; i < len(level); {
 		if pastDeadline(ctx) {
-			return applyResults(value, results), nil, opaque, ResolveTimeoutErr{}
+			return applyResults(value, results), nil, opaque, false, ResolveTimeoutErr{}
 		}
 		call := level[i]
 		fn, err := providerFn(providers, call)
 		if err != nil {
-			return applyResults(value, results), nil, opaque, err
+			return applyResults(value, results), nil, opaque, false, err
 		}
 		if !runnable[i] {
 			blocked = append(blocked, call)
@@ -982,9 +1043,14 @@ func (in *Compiler) runLevel(
 				executed[ran.call.key] = true
 			}
 			if err != nil {
-				return applyResults(value, results), nil, opaque, err
+				return applyResults(value, results), nil, opaque, false, err
 			}
 			i = end
+			for _, ran := range together {
+				if ran.opaque || reveal.after(ran.call) {
+					return applyResults(value, results), append(blocked, level[i:]...), opaque, true, nil
+				}
+			}
 			continue
 		}
 		_, fromGo := fn.(cuexruntime.ResultProviderFn)
@@ -993,13 +1059,16 @@ func (in *Compiler) runLevel(
 		}
 		ret, err := callProvider(ctx, fn, call)
 		if err != nil {
-			return applyResults(value, results), nil, opaque, err
+			return applyResults(value, results), nil, opaque, false, err
 		}
 		results = append(results, callResult{call: call, ret: ret, opaque: !fromGo})
 		executed[call.key] = true
 		i++
+		if !fromGo || reveal.after(call) {
+			return applyResults(value, results), append(blocked, level[i:]...), opaque, true, nil
+		}
 	}
-	return applyResults(value, results), blocked, opaque, nil
+	return applyResults(value, results), blocked, opaque, false, nil
 }
 
 // concurrentRun returns the end of the run of calls starting at start that
@@ -1477,16 +1546,33 @@ func unconstrained(path cue.Path) cue.Path {
 
 // ready reports whether a call can run now.
 //
-// Neither test below is sufficient alone. Parameters can be concrete and still
-// unresolved - an open struct is concrete, and that is what an unfinished call
-// holds - so concreteness misses a dependency. Following references misses one
-// reached by indexing a list a comprehension has yet to build. Requiring both
-// costs a call one pass in the cases where they disagree.
-func ready(call pendingCall, pending []pendingCall, stillPending map[string]bool, executed map[string]bool, waitingFor map[string][]string) bool {
+// Calls run in the order the template writes them, and a call moves later only
+// for a call it reads. Following references finds most of those; it misses one
+// reached by indexing a list a comprehension has yet to build, which leaves the
+// call's parameters unresolved instead. Such a call waits for the calls written
+// ahead of it, which are the only ones a template order can have meant it to
+// read, and never for one after it: a later call can end the resolve, as a
+// workflow step's wait does, and a call held behind it would never run. With
+// nothing ahead of it left to run, it runs as it stands, and a parameter that
+// is still missing is reported by the call.
+func ready(call pendingCall, pending []pendingCall, stillPending map[string]bool, executed map[string]bool, waitingFor *callWaits) bool {
 	if waitsForPeer(call, pending, stillPending, executed, waitingFor) {
 		return false
 	}
-	return paramsResolved(call.value)
+	return paramsResolved(call.value) || !earlierPending(call, pending, stillPending)
+}
+
+// earlierPending reports whether a call written ahead of call has yet to run.
+func earlierPending(call pendingCall, pending []pendingCall, stillPending map[string]bool) bool {
+	for _, peer := range pending {
+		if peer.key == call.key {
+			return false
+		}
+		if stillPending[peer.key] {
+			return true
+		}
+	}
+	return false
 }
 
 // paramsResolved reports whether a call's parameters have a value yet. A call
@@ -1495,12 +1581,11 @@ func ready(call pendingCall, pending []pendingCall, stillPending map[string]bool
 // it is ordered by the calls it reads (callDependencies) alone.
 //
 // A NativeProviderFn is handed the parameters as a cue.Value and may mean to
-// take them unresolved - a schema, or an open disjunction. Such a call is
-// never ready, so it runs after every call in its round whose parameters are
-// settled, rather than in the order the walk found it. It does still run: the
-// last round has nothing else left and runs it anyway. Exempting native
-// functions from this test would let one run before a call it reads through
-// something the reference search cannot see, which is what the test is for.
+// take them unresolved - a schema, or an open disjunction. Such a call waits
+// for the calls written ahead of it and then runs in its place (see ready).
+// Exempting native functions from this test would let one run before a call
+// it reads through something the reference search cannot see, which is what
+// the test is for.
 func paramsResolved(v cue.Value) bool {
 	params := v.LookupPath(paramsPath)
 	if !params.Exists() {
@@ -1509,14 +1594,100 @@ func paramsResolved(v cue.Value) bool {
 	return params.Validate(cue.Concrete(true)) == nil
 }
 
+// callWaits is what each call waits for, worked out the first time the call is
+// seen and reused after: re-reading it every pass means re-reading a value that
+// grows more expensive to inspect with every result applied to it.
+type callWaits struct {
+	of map[string][]string
+	// analysis is where it is worked out, when the resolve has one.
+	analysis *analysisBuild
+}
+
+// analysisBuild is a second build of the value a resolve started from, in a
+// CUE context of its own, which working out what a call reads evaluates
+// instead of the value calls run against. Following a call's references takes
+// its inputs apart, and CUE keeps what that evaluates with the context: a
+// result filled in afterwards can then come back bottom, and the calls after it
+// are never found. kubevela/workflow's legacy op package did this to its
+// share-cloud-resource and deploy-cloud-resource steps.
+//
+// It is built the first time a call is read, and holds no results: a read of
+// a call that has run is settled without looking at its output, and the rest
+// is the template as written.
+type analysisBuild struct {
+	build func() cue.Value
+	value cue.Value
+	built bool
+	// fields is where each of the template's fields is, so a read the
+	// reference search cannot follow, a let's for one, is followed through
+	// the syntax instead (see isUnfollowable).
+	fields map[ast.Node]cue.Path
+}
+
+// node is call as the analysis build has it. A resolve with no build of its
+// own reads the call itself. A call the build does not have, revealed by a
+// result since, is not read, and runs where it is written.
+func (a *analysisBuild) node(call pendingCall) (cue.Value, bool) {
+	if a == nil {
+		return call.value, true
+	}
+	if !a.built {
+		a.value, a.built = a.build(), true
+	}
+	node := a.value.LookupPath(call.path)
+	return node, node.Exists()
+}
+
+// syntaxPaths is where the fields an unfollowable read names are, following
+// lets to their expressions, reporting false where one of them is not a field
+// of the template the build knows the path of.
+func (a *analysisBuild) syntaxPaths(n ast.Node) ([]reference, bool) {
+	if a == nil || a.fields == nil || !a.built {
+		return nil, false
+	}
+	var refs []reference
+	ok := true
+	seen := map[ast.Node]bool{}
+	var visit func(ast.Node)
+	visit = func(n ast.Node) {
+		if n == nil || seen[n] {
+			return
+		}
+		seen[n] = true
+		for _, ident := range referenceIdents(n) {
+			switch decl := ident.Node.(type) {
+			case nil, *ast.ImportSpec:
+				// a builtin, or a package: not a read of the template
+			case *ast.LetClause:
+				visit(decl.Expr)
+			default:
+				if path, found := a.fields[decl]; found {
+					refs = append(refs, reference{root: a.value, path: path, key: path.String()})
+				} else {
+					ok = false
+				}
+			}
+		}
+	}
+	visit(n)
+	return refs, ok
+}
+
 // waitsForPeer reports whether the call reads output that another call has yet
 // to produce. What a call reads is worked out once and remembered; each pass
 // only rechecks whether those calls have run.
-func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[string]bool, executed map[string]bool, waitingFor map[string][]string) bool {
-	waits, known := waitingFor[call.key]
+func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[string]bool, executed map[string]bool, waitingFor *callWaits) bool {
+	waits, known := waitingFor.of[call.key]
 	if !known {
-		waits = callDependencies(call, pending, executed)
-		waitingFor[call.key] = waits
+		// a lone call has no peer to read, and no reason to build anything
+		if len(pending) > 1 {
+			if node, ok := waitingFor.analysis.node(call); ok {
+				read := call
+				read.value = node
+				waits = callDependencies(read, pending, executed, waitingFor.analysis)
+			}
+		}
+		waitingFor.of[call.key] = waits
 	}
 	for _, key := range waits {
 		if stillPending[key] {
@@ -1543,7 +1714,7 @@ func waitsForPeer(call pendingCall, pending []pendingCall, stillPending map[stri
 // top-level fields, so those are what it reads.
 //
 //	wait: op.#ConditionalWait & {continue: req.$returns != _|_}
-func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool) []string {
+func callDependencies(call pendingCall, pending []pendingCall, executed map[string]bool, syntax *analysisBuild) []string {
 	if len(pending) < 2 {
 		return nil // no peer to read, so nothing to read from one
 	}
@@ -1553,9 +1724,19 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 	}
 	waits := map[string]bool{}
 	seen := map[string]bool{}
+	unfollowed := false
 	for len(queue) > 0 {
 		ref := queue[0]
 		queue = queue[1:]
+		if ref.syntax != nil {
+			// a read the search cannot follow, followed in the syntax
+			refs, ok := syntax.syntaxPaths(ref.syntax)
+			queue = append(queue, refs...)
+			if !ok {
+				unfollowed = true
+			}
+			continue
+		}
 		if seen[ref.key] || ref.key == call.key {
 			continue
 		}
@@ -1579,13 +1760,14 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 			// The target has not settled: it is a disjunction still standing
 			// on its default, which a comprehension guarded by another call's
 			// output may yet replace. That guard is not visible from here, so
-			// the call waits a pass rather than reading a default that is
-			// about to change.
+			// the call waits for the calls written ahead of it, the only ones
+			// a template order lets it read, rather than reading a default one
+			// of them is about to change.
 			//
 			//	w: *false | bool
 			//	if apply.$returns.value.spec.key != "" { w: true }
 			//	wait: builtin.#ConditionalWait & {$params: continue: w}
-			return peerKeys(call, pending)
+			return earlierKeys(call, pending)
 		}
 		if key := at.String(); key != ref.key {
 			// the exact path does not resolve yet, but an ancestor of it
@@ -1595,6 +1777,13 @@ func callDependencies(call pendingCall, pending []pendingCall, executed map[stri
 		}
 		if !collectReferences(target, &queue, 0) {
 			return peerKeys(call, pending)
+		}
+	}
+	if unfollowed {
+		// A read the syntax could not place either: the call waits for what a
+		// template order lets it read, the calls written ahead of it.
+		for _, key := range earlierKeys(call, pending) {
+			waits[key] = true
 		}
 	}
 	if len(waits) == 0 {
@@ -1635,6 +1824,9 @@ type reference struct {
 	root cue.Value
 	path cue.Path
 	key  string
+	// syntax, when set, is a read the search cannot follow: a name with no
+	// path, such as a let, whose value is not there yet, as written.
+	syntax ast.Node
 }
 
 // nearestExisting resolves a reference, falling back to the nearest ancestor
@@ -1671,6 +1863,30 @@ func owningExecutedCall(ref string, executed map[string]bool) bool {
 	return false
 }
 
+// isUnfollowable reports a value written as a name the reference search cannot
+// follow, a let's for one, that has no value yet. CUE renders an interpolation
+// of such a let as concrete, so neither the search nor the parameters being
+// concrete would show the read.
+func isUnfollowable(v cue.Value) bool {
+	switch v.Source().(type) {
+	case *ast.Ident, *ast.SelectorExpr:
+		return v.IncompleteKind() == cue.BottomKind
+	}
+	return false
+}
+
+// earlierKeys is the calls written ahead of call.
+func earlierKeys(call pendingCall, pending []pendingCall) []string {
+	var keys []string
+	for _, peer := range pending {
+		if peer.key == call.key {
+			break
+		}
+		keys = append(keys, peer.key)
+	}
+	return keys
+}
+
 func peerKeys(call pendingCall, pending []pendingCall) []string {
 	keys := make([]string, 0, len(pending))
 	for _, peer := range pending {
@@ -1701,6 +1917,10 @@ func collectReferences(v cue.Value, into *[]reference, depth int) bool {
 		*into = append(*into, reference{root: root, path: path, key: path.String()})
 		// what the reference points at is reached by following it from the
 		// queue, not by descending into it here
+		return true
+	}
+	if isUnfollowable(v) {
+		*into = append(*into, reference{syntax: v.Source()})
 		return true
 	}
 	if op, args := v.Expr(); op != cue.NoOp || len(args) > 1 {
