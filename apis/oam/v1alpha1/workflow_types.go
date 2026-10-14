@@ -107,6 +107,13 @@ type ForEach struct {
 	// +kubebuilder:validation:Enum=StepByStep;DAG
 	// +optional
 	Mode WorkflowMode `json:"mode,omitempty"`
+	// Key names each item's steps by its value instead of its index: paths into the
+	// item whose values, joined with "-", replace the index in the step names. Each
+	// value must be a string or an integer, and the joined keys unique in the list.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=8
+	// +optional
+	Key []string `json:"key,omitempty"`
 }
 
 // WorkflowSpec defines workflow steps and other attributes
