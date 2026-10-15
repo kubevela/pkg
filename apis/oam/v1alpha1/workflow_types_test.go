@@ -62,6 +62,21 @@ func TestForEachFrom(t *testing.T) {
 	r.Nil(step.ForEach.Items)
 }
 
+func TestForEachKey(t *testing.T) {
+	r := require.New(t)
+	var step WorkflowStep
+	r.NoError(yaml.Unmarshal([]byte(`{name: s, type: t, forEach: {from: targets, key: [cluster, namespace]}}`), &step))
+	r.Equal([]string{"cluster", "namespace"}, step.ForEach.Key)
+
+	clone := step.DeepCopy()
+	clone.ForEach.Key[0] = "changed"
+	r.Equal("cluster", step.ForEach.Key[0], "a deep copy does not share the key")
+
+	out, err := json.Marshal(WorkflowStep{WorkflowStepBase: WorkflowStepBase{Name: "s", Type: "t"}, ForEach: &ForEach{From: "x"}})
+	r.NoError(err)
+	r.NotContains(string(out), "key", "an unset key is omitted")
+}
+
 func TestWorkflowStepWithoutForEachOmitsIt(t *testing.T) {
 	r := require.New(t)
 	out, err := json.Marshal(WorkflowStep{WorkflowStepBase: WorkflowStepBase{Name: "s", Type: "t"}})
