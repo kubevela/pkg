@@ -125,6 +125,8 @@ func interpolate(raw string, eval func(expr string, whole bool) (interface{}, er
 				"for example %s.join(\",\")", f.Expr, f.Expr)
 		case map[string]interface{}:
 			return nil, fmt.Errorf("%q is a map, which text cannot embed; select a value from it", f.Expr)
+		case nil:
+			return nil, fmt.Errorf("%q is null, which text cannot embed; guard it, for example has(x) && x != null ? x : \"none\"", f.Expr)
 		}
 		fmt.Fprintf(&b, "%v", v)
 	}
@@ -148,6 +150,8 @@ func Typed(v interface{}) interface{} { return alreadyTyped{value: normaliseWidt
 // requires; a non-string key would not survive JSON anyway.
 func native(v ref.Val) interface{} {
 	switch t := v.(type) {
+	case types.Null:
+		return nil
 	case traits.Lister:
 		n, ok := t.Size().Value().(int64)
 		if !ok {

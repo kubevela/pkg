@@ -17,6 +17,7 @@ limitations under the License.
 package cel
 
 import (
+	"strings"
 	"testing"
 
 	"cuelang.org/go/cue"
@@ -219,5 +220,37 @@ func TestEvalPropertyCollapsesEscapesWithoutAnExpression(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
+	}
+}
+
+// A null is nil to the properties document, never protobuf's NULL_VALUE: a whole
+// value stays null, and text refuses to embed one, as it refuses a list or a map.
+func TestEvalNull(t *testing.T) {
+	env := testEnv(t)
+	in := map[string]interface{}{
+		"context": map[string]interface{}{"appName": "checkout"},
+	}
+
+	got, err := fixture.Eval(env, `null`, in)
+	if err != nil || got != nil {
+		t.Fatalf("Eval of a null field: got %#v, %v; want nil", got, err)
+	}
+
+	got, err = fixture.EvalProperty(env, `$(null)`, in)
+	if err != nil || got != nil {
+		t.Fatalf("whole-value null: got %#v, %v; want nil", got, err)
+	}
+
+	got, err = fixture.EvalProperty(env, `$([context.appName, null])`, in)
+	if err != nil {
+		t.Fatalf("list holding a null: %v", err)
+	}
+	if l, ok := got.([]interface{}); !ok || len(l) != 2 || l[1] != nil {
+		t.Fatalf("list holding a null: got %#v, want [checkout <nil>]", got)
+	}
+
+	_, err = fixture.EvalProperty(env, `host=$(null)`, in)
+	if err == nil || !strings.Contains(err.Error(), `"null" is null`) {
+		t.Fatalf("null embedded in text: got err %v, want a refusal naming the null", err)
 	}
 }
