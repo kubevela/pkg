@@ -33,7 +33,8 @@ func TestErrors(t *testing.T) {
 
 	v := cuecontext.New().CompileString(`a: b: "c"`).LookupPath(cue.ParsePath("a.b"))
 	e := cuex.NewFunctionCallError(v, fmt.Errorf("err"))
-	require.Equal(t, `function call error for a.b: err (value: "c")`, e.Error())
+	require.Equal(t, "function call error for a.b: err", e.Error())
+	require.Equal(t, `"c"`, e.Value, "the value stays on the error for a caller that wants it")
 
 	require.Equal(t, "cuex compile resolve timeout", cuex.ResolveTimeoutErr{}.Error())
 }
@@ -45,19 +46,20 @@ func TestFunctionCallErrorMessage(t *testing.T) {
 		expected string
 	}{
 		{
-			name:     "path and value present",
+			name:     "the value is not part of the message",
 			err:      cuex.FunctionCallError{Path: "a.b", Value: `"c"`, Err: fmt.Errorf("err")},
-			expected: `function call error for a.b: err (value: "c")`,
+			expected: "function call error for a.b: err",
 		},
 		{
 			name:     "empty path drops the for clause",
 			err:      cuex.FunctionCallError{Value: `"c"`, Err: fmt.Errorf("err")},
-			expected: `function call error: err (value: "c")`,
+			expected: "function call error: err",
 		},
 		{
-			name:     "empty value drops the value clause",
-			err:      cuex.FunctionCallError{Path: "a.b", Err: fmt.Errorf("err")},
-			expected: "function call error for a.b: err",
+			name: "a provider call's whole value stays out of a one-line message",
+			err: cuex.FunctionCallError{Path: "_res", Value: "#do: \"do\"\n#provider: \"http\"\n$params: {\n\turl: \"http://x\"\n}",
+				Err: fmt.Errorf("Get \"http://x\": connect: connection refused")},
+			expected: `function call error for _res: Get "http://x": connect: connection refused`,
 		},
 		{
 			name:     "empty path and value",

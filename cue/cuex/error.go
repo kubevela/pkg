@@ -44,22 +44,20 @@ func (e ProviderFnNotFoundErr) Error() string {
 
 // FunctionCallError error for executing provider function
 type FunctionCallError struct {
-	Path  string
+	Path string
+	// Value is the call as it was made, for a caller that wants it. It is not
+	// part of Error, whose message is shown in resource status.
 	Value string
 	Err   error
 }
 
-// Error .
+// Error names the call and what the provider reported.
 func (e FunctionCallError) Error() string {
 	s := "function call error"
 	if e.Path != "" {
 		s += " for " + e.Path
 	}
-	s += ": " + e.Err.Error()
-	if e.Value != "" {
-		s += " (value: " + e.Value + ")"
-	}
-	return s
+	return s + ": " + e.Err.Error()
 }
 
 // NewFunctionCallError create a new error for executing resolved function call
