@@ -249,6 +249,17 @@ func TestEvalNull(t *testing.T) {
 		t.Fatalf("list holding a null: got %#v, want [checkout <nil>]", got)
 	}
 
+	got, err = fixture.EvalProperty(env, `$({"name": context.appName, "owner": null})`, in)
+	if err != nil {
+		t.Fatalf("map holding a null: %v", err)
+	}
+	if m, ok := got.(map[string]interface{}); !ok || len(m) != 2 || m["owner"] != nil {
+		t.Fatalf("map holding a null: got %#v, want map[name:checkout owner:<nil>]", got)
+	}
+	if _, ok := got.(map[string]interface{})["owner"]; !ok {
+		t.Fatalf("map holding a null: the null key is dropped, got %#v", got)
+	}
+
 	_, err = fixture.EvalProperty(env, `host=$(null)`, in)
 	if err == nil || !strings.Contains(err.Error(), `"null" is null`) {
 		t.Fatalf("null embedded in text: got err %v, want a refusal naming the null", err)
