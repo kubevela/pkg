@@ -270,7 +270,7 @@ func (p *Plan) Eval(ctx context.Context, resolvers map[string]Resolver, opts Tre
 				}
 				return opts.Unknown(expr, whole)
 			}
-			v, err := e.run(e.dyn, expr, normalised)
+			v, err := e.run(ctx, e.dyn, expr, normalised)
 			if err != nil && opts.OnEvalError != nil {
 				if reported := opts.OnEvalError(expr, p.readsOf[expr], err); reported != nil {
 					err = reported

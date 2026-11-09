@@ -17,6 +17,8 @@ limitations under the License.
 package cel
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -25,6 +27,7 @@ import (
 	"github.com/google/cel-go/common/types"
 	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/common/types/traits"
+	"github.com/google/cel-go/interpreter"
 
 	"github.com/kubevela/pkg/cel/template"
 )
@@ -61,20 +64,37 @@ func (e *Engine) OutputType(env *cel.Env, expr string) (*cel.Type, error) {
 
 // Eval compiles and runs an expression against real data.
 func (e *Engine) Eval(env *cel.Env, expr string, in map[string]interface{}) (interface{}, error) {
-	return e.run(env, expr, normaliseInput(in))
+	return e.run(context.Background(), env, expr, normaliseInput(in))
 }
 
-// run evaluates an expression against an activation already normalised.
-func (e *Engine) run(env *cel.Env, expr string, activation map[string]interface{}) (interface{}, error) {
+// run evaluates an expression against an activation already normalised. It stops
+// when ctx is done, or when the evaluation's cost passes CostLimit.
+func (e *Engine) run(ctx context.Context, env *cel.Env, expr string, activation map[string]interface{}) (interface{}, error) {
 	c, err := e.compile(env, expr)
 	if err != nil {
 		return nil, err
 	}
-	out, _, err := c.prg.Eval(activation)
+	out, _, err := c.prg.ContextEval(ctx, activation)
 	if err != nil {
-		return nil, err
+		return nil, evalError(ctx, err)
 	}
 	return native(out), nil
+}
+
+// evalError names why an evaluation was stopped: the caller's context, or the
+// cost limit. Any other error is the expression's own.
+func evalError(ctx context.Context, err error) error {
+	var cancelled interpreter.EvalCancelledError
+	if !errors.As(err, &cancelled) {
+		return err
+	}
+	if cancelled.Cause == interpreter.CostLimitExceeded {
+		return fmt.Errorf("expression exceeds the evaluation cost limit of %d", CostLimit)
+	}
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("expression evaluation stopped: %w", ctxErr)
+	}
+	return err
 }
 
 // EvalProperty evaluates a whole property value, interpolation included.
@@ -89,7 +109,7 @@ func (e *Engine) run(env *cel.Env, expr string, activation map[string]interface{
 func (e *Engine) EvalProperty(env *cel.Env, raw string, in map[string]interface{}) (interface{}, error) {
 	activation := normaliseInput(in)
 	return interpolate(raw, func(expr string, _ bool) (interface{}, error) {
-		return e.run(env, expr, activation)
+		return e.run(context.Background(), env, expr, activation)
 	})
 }
 

@@ -69,7 +69,20 @@ const (
 	checkedPerEnvSize = 256
 	// planCacheSize bounds the JSON documents kept planned.
 	planCacheSize = 1024
+	// interruptCheckFrequency is how many comprehension iterations run between
+	// checks of the evaluation's context.
+	interruptCheckFrequency = 100
 )
+
+// CostLimit is the most an evaluation may cost, in CEL's runtime cost units
+// (roughly one per operation). Expressions come from Applications and
+// definitions and run in the webhook and the controllers, so one that would run
+// for minutes is stopped instead. It matches the per-expression limit Kubernetes
+// sets for CRD validation rules. It is process-wide and fixed into each program
+// when it is compiled. Programs of the engine's own environment are cached, so a
+// host that changes it does so at startup, before any expression is compiled;
+// programs of a typed environment are compiled afresh and take the current value.
+var CostLimit uint64 = 1_000_000
 
 // An Engine compiles and evaluates expressions over a fixed set of roots.
 //
@@ -348,7 +361,7 @@ func (e *Engine) compile(env *cel.Env, expr string) (*compiled, error) {
 	if iss != nil && iss.Err() != nil {
 		return nil, iss.Err()
 	}
-	prg, err := env.Program(ast)
+	prg, err := env.Program(ast, cel.CostLimit(CostLimit), cel.InterruptCheckFrequency(interruptCheckFrequency))
 	if err != nil {
 		return nil, err
 	}
