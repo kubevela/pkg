@@ -116,3 +116,11 @@ func TestNewRequest(t *testing.T) {
 	_, err = http.NewRequest(context.Background(), http.RequestVars{Method: "GET", URL: "://bad"})
 	require.Error(t, err)
 }
+
+func TestNewRequestWithoutHeadersKeepsHeaderUsable(t *testing.T) {
+	req, err := http.NewRequest(context.Background(), http.RequestVars{Method: "GET", URL: "http://example.com/"})
+	require.NoError(t, err)
+	require.NotNil(t, req.Header)
+	req.Header.Set("X-Added", "later")
+	require.Equal(t, "later", req.Header.Get("X-Added"))
+}

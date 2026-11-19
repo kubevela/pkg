@@ -41,15 +41,10 @@ type RequestVars struct {
 	} `json:"request"`
 }
 
-func toHeader(values map[string]string) http.Header {
-	if values == nil {
-		return nil
-	}
-	header := make(http.Header, len(values))
+func addAll(header http.Header, values map[string]string) {
 	for name, value := range values {
 		header.Add(name, value)
 	}
-	return header
 }
 
 // ResponseVars is the vars for http response
@@ -73,8 +68,11 @@ func NewRequest(ctx context.Context, vars RequestVars) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header = toHeader(vars.Request.Header)
-	req.Trailer = toHeader(vars.Request.Trailer)
+	addAll(req.Header, vars.Request.Header)
+	if vars.Request.Trailer != nil {
+		req.Trailer = make(http.Header, len(vars.Request.Trailer))
+		addAll(req.Trailer, vars.Request.Trailer)
+	}
 	return req, nil
 }
 
