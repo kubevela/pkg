@@ -28,16 +28,23 @@ import (
 	"github.com/kubevela/pkg/util/runtime"
 )
 
-// RequestVars is the vars for http request
+// RequestVars is the vars for http request. Headers and trailers take one
+// string per name, as http.cue declares them.
 // TODO: support timeout & tls
 type RequestVars struct {
 	Method  string `json:"method"`
 	URL     string `json:"url"`
 	Request struct {
-		Body    string      `json:"body"`
-		Header  http.Header `json:"header"`
-		Trailer http.Header `json:"trailer"`
+		Body    string            `json:"body"`
+		Header  map[string]string `json:"header"`
+		Trailer map[string]string `json:"trailer"`
 	} `json:"request"`
+}
+
+func addAll(header http.Header, values map[string]string) {
+	for name, value := range values {
+		header.Add(name, value)
+	}
 }
 
 // ResponseVars is the vars for http response
@@ -54,15 +61,27 @@ type DoParams providers.Params[RequestVars]
 // DoReturns returned struct for http response
 type DoReturns providers.Returns[ResponseVars]
 
-// Do execute http request and process returned result
-func Do(ctx context.Context, doParams *DoParams) (*DoReturns, error) {
-	params := doParams.Params
-	req, err := http.NewRequestWithContext(ctx, params.Method, params.URL, strings.NewReader(params.Request.Body))
+// NewRequest builds the HTTP request a vela/http call describes, so a provider
+// that sends it through its own client builds it the same way.
+func NewRequest(ctx context.Context, vars RequestVars) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, vars.Method, vars.URL, strings.NewReader(vars.Request.Body))
 	if err != nil {
 		return nil, err
 	}
-	req.Header = params.Request.Header
-	req.Trailer = params.Request.Trailer
+	addAll(req.Header, vars.Request.Header)
+	if vars.Request.Trailer != nil {
+		req.Trailer = make(http.Header, len(vars.Request.Trailer))
+		addAll(req.Trailer, vars.Request.Trailer)
+	}
+	return req, nil
+}
+
+// Do execute http request and process returned result
+func Do(ctx context.Context, doParams *DoParams) (*DoReturns, error) {
+	req, err := NewRequest(ctx, doParams.Params)
+	if err != nil {
+		return nil, err
+	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
