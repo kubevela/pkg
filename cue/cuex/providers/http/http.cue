@@ -7,7 +7,7 @@ package http
 	// +usage=The params of this action
 	$params: {
 		// +usage=The method of HTTP request
-		method: *"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "CONNECT" | "OPTIONS" | "TRACE"
+		method: *"GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "CONNECT" | "OPTIONS" | "TRACE" | "HEAD"
 		// +usage=The url to request
 		url: string
 		// +usage=The request config
@@ -55,3 +55,7 @@ package http
 #OPTIONS: #Do & {$params: method: "OPTIONS"}
 
 #TRACE: #Do & {$params: method: "TRACE"}
+
+// A HEAD asks for the headers only; the provider hands back the empty body the
+// server sent along with them.
+#Head: #Do & {$params: method: "HEAD"}
