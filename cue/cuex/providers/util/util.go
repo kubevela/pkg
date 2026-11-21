@@ -31,5 +31,9 @@ var template string
 
 // Package is the registered internal cuex package for util.
 var Package = runtime.Must(cuexruntime.NewInternalPackage(ProviderName, template, map[string]cuexruntime.ProviderFn{
-	"truncate": cuexruntime.GenericProviderFn[TruncateParams, TruncateReturns](Truncate),
+	"truncate":    cuexruntime.GenericProviderFn[TruncateParams, TruncateReturns](Truncate),
+	"timeparse":   cuexruntime.GenericProviderFn[TimeParseParams, TimeParseReturns](TimeParse),
+	"timeadd":     cuexruntime.GenericProviderFn[TimeAddParams, TimeAddReturns](TimeAdd),
+	"timediff":    cuexruntime.GenericProviderFn[TimeDiffParams, TimeDiffReturns](TimeDiff),
+	"timecompare": cuexruntime.GenericProviderFn[TimeCompareParams, TimeCompareReturns](TimeCompare),
 }))
