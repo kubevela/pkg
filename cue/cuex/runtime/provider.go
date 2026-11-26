@@ -30,6 +30,8 @@ import (
 	"sync"
 
 	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/ast"
+	cuejson "cuelang.org/go/encoding/json"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	"github.com/kubevela/pkg/apis/cue/v1alpha1"
@@ -329,9 +331,14 @@ func (in *ExternalProviderFn) invoke(ctx context.Context, decoded any) (any, err
 	default:
 		return nil, fmt.Errorf("protocol %s not supported yet", in.Protocol)
 	}
-	ret := &map[string]any{}
-	if err := json.Unmarshal(bs, ret); err != nil {
+	// read by CUE, not encoding/json, so a number keeps its kind and digits:
+	// 200 is an int, not the float64 that prints as 2E+2
+	ret, err := cuejson.Extract("reply of "+in.Fn, bs)
+	if err != nil {
 		return nil, err
+	}
+	if _, ok := ret.(*ast.StructLit); !ok {
+		return nil, fmt.Errorf("external provider %s returned %s, want a JSON object", in.Fn, bytes.TrimSpace(bs))
 	}
 	return map[string]any{providers.ReturnsKey: ret}, nil
 }
