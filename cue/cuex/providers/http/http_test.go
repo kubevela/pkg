@@ -98,6 +98,47 @@ r: http.#Do & {$params: {
 	require.Equal(t, "a,b", body)
 }
 
+func TestDoHeadRequest(t *testing.T) {
+	methods := make(chan string, 1)
+	svr := httptest.NewServer(nethttp.HandlerFunc(func(writer nethttp.ResponseWriter, request *nethttp.Request) {
+		methods <- request.Method
+		// A HEAD reply mirrors the headers of the matching GET and carries no body.
+		writer.Header().Set("X-Head", "yes")
+		writer.WriteHeader(200)
+	}))
+	defer svr.Close()
+	src := fmt.Sprintf(`
+import "vela/http"
+
+r: http.#Head & {$params: {
+	url: %q
+}}
+`, svr.URL)
+	v, err := cuex.NewCompilerWithInternalPackages(http.Package).CompileString(context.Background(), src)
+	require.NoError(t, err)
+	body, err := v.LookupPath(cue.ParsePath("r.$returns.body")).String()
+	require.NoError(t, err)
+	require.Equal(t, "", body)
+	status, err := v.LookupPath(cue.ParsePath("r.$returns.statusCode")).Int64()
+	require.NoError(t, err)
+	require.Equal(t, int64(200), status)
+	// The headers are the whole point of a HEAD reply; check the provider
+	// hands back the ones the server sent, not just the status.
+	header := v.LookupPath(cue.ParsePath("r.$returns.header")).LookupPath(cue.MakePath(cue.Str("X-Head")))
+	require.NoError(t, header.Err())
+	require.True(t, header.Exists())
+	values, err := header.List()
+	require.NoError(t, err)
+	var got []string
+	for values.Next() {
+		value, err := values.Value().String()
+		require.NoError(t, err)
+		got = append(got, value)
+	}
+	require.Equal(t, []string{"yes"}, got)
+	require.Equal(t, nethttp.MethodHead, <-methods)
+}
+
 func TestNewRequest(t *testing.T) {
 	vars := http.RequestVars{Method: "PUT", URL: "http://example.com/x"}
 	vars.Request.Body = "payload"

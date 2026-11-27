@@ -219,3 +219,32 @@ func TestProviderCustomHeader(t *testing.T) {
 	_, err := prd.Call(context.Background(), v)
 	require.NoError(t, err, "call to ExternalProviderFn failed")
 }
+
+func TestExternalProviderFnKeepsNumbersAsWritten(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"status": 200, "stars": 7926, "ratio": 0.5, "big": 9007199254740993}`))
+	}))
+	defer server.Close()
+	fn := runtime.ExternalProviderFn{Provider: v1alpha1.Provider{Protocol: v1alpha1.ProtocolHTTP, Endpoint: server.URL}}
+	ctx := cuecontext.New()
+	call := ctx.CompileString(`{$params: {}, $returns?: {...}}`)
+	check := func(t *testing.T, out cue.Value) {
+		text := ctx.CompileString(`r: _, s: "\(r.status) \(r.stars) \(r.ratio) \(r.big)"`).
+			FillPath(cue.ParsePath("r"), out.LookupPath(cue.ParsePath(providers.ReturnsKey)))
+		s, err := text.LookupPath(cue.ParsePath("s")).String()
+		require.NoError(t, err)
+		require.Equal(t, "200 7926 0.5 9007199254740993", s)
+		_, err = out.LookupPath(cue.ParsePath(providers.ReturnsKey)).Unify(ctx.CompileString(`{status: int}`)).LookupPath(cue.ParsePath("status")).Int64()
+		require.NoError(t, err, "an integer in the reply is an int")
+	}
+	t.Run("Call", func(t *testing.T) {
+		out, err := fn.Call(context.Background(), call)
+		require.NoError(t, err)
+		check(t, out)
+	})
+	t.Run("CallForResult", func(t *testing.T) {
+		ret, err := fn.CallForResult(context.Background(), call)
+		require.NoError(t, err)
+		check(t, call.FillPath(cue.ParsePath(""), ret))
+	})
+}
